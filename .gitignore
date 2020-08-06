@@ -55,6 +55,11 @@ coverage.xml
 *.mo
 *.pot
 
+# Project temp/test/work stuff
+parser.out
+parsetab.py
+test.py
+
 # Django stuff:
 *.log
 local_settings.py
