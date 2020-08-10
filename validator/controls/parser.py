@@ -1,6 +1,6 @@
 import ply.yacc as yacc
-from lexer import tokens
-from elements import ElemLogic, ElemSelector, ElemList, Elem
+from .lexer import tokens
+from .elements import ElemLogic, ElemSelector, ElemList, Elem
 
 precedence = (
     ('left', 'LOGIC'),

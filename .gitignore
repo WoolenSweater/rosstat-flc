@@ -59,6 +59,7 @@ coverage.xml
 parser.out
 parsetab.py
 test.py
+tmp.txt
 
 # Django stuff:
 *.log

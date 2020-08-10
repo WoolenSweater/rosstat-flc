@@ -20,7 +20,7 @@ t_LPAREN = r'\('
 t_RPAREN = r'\)'
 
 t_LOGIC = r'and|or'
-t_COMP = r'\|<\||\|<=\||\|=\||\|>=\||\|>\|'
+t_COMP = r'\|<\||\|<=\||\|=\||\|>=\||\|>\||\|<>\|'
 
 t_SUM = r'SUM'
 t_ABS = r'abs'
@@ -72,7 +72,7 @@ def t_elem_CODE(t):
 
 @TOKEN(r'\d+')
 def t_NUM(t):
-    t.value = int(t.value)
+    t.value = float(t.value)
     return t
 
 
