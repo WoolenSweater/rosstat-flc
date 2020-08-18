@@ -69,7 +69,10 @@ class Elem:
     def __modify(self, elem, op_func):
         self.rows |= elem.rows
         self.entries |= elem.entries
-        self.val = op_func(self.val, elem.val)
+        if self.val is None or elem.val is None:
+            self.val = None
+        else:
+            self.val = op_func(self.val, elem.val)
         return self
 
     @property
@@ -89,6 +92,8 @@ class Elem:
 
     def round(self, ndig, trunc=0):
         '''Округление/отсечение до ndig знаков'''
+        if self.val is None:
+            return
         if trunc > 0:
             self.val = float(f'{self.val:.{abs(ndig)}f}')
         else:
@@ -96,11 +101,11 @@ class Elem:
 
     def abs(self):
         '''Выполнение функции abs над значением'''
-        self.val = abs(self.val)
+        self.val = None if self.val is None else abs(self.val)
 
     def floor(self):
         '''Выполнение функции floor над значением'''
-        self.val = floor(self.val)
+        self.val = None if self.val is None else floor(self.val)
 
 
 class ElemList:
@@ -116,7 +121,6 @@ class ElemList:
                       (3, None if s3 is None else s3[0])]
 
         self.rounded_off = False
-        self.precision = 2
         self.funcs = []
         self.elems = []
 
@@ -132,11 +136,9 @@ class ElemList:
         return self
 
     def check(self, raw_data, ctx_elem, precision) -> list:
-        self.precision = precision
-
         self._check_coords(raw_data)
         self._read_data(raw_data)
-        self._apply_funcs(raw_data, ctx_elem)
+        self._apply_funcs(raw_data, ctx_elem, precision)
         return self._flatten_elems()
 
     def _check_coords(self, raw_data) -> None:
@@ -173,7 +175,7 @@ class ElemList:
                 return False
         return True
 
-    def _apply_funcs(self, raw_data, ctx_elem):
+    def _apply_funcs(self, raw_data, ctx_elem, precision):
         '''Выполнение функций на эелементах массива'''
         for func, args in self.funcs:
             if func == 'sum':
@@ -181,12 +183,9 @@ class ElemList:
             elif func in ('abs', 'floor'):
                 self._apply_unary(func)
             elif func in ('round', 'isnull'):
-                self._apply_binary(raw_data, func, *args)
+                self._apply_binary(raw_data, func, precision, *args)
             else:
-                self._apply_math(raw_data, func, *args)
-
-        if not self.rounded_off:  # округление по умолчанию
-            self._apply_binary(raw_data, 'round', Elem(self.precision))
+                self._apply_math(raw_data, func, precision, *args)
 
     def _apply_sum(self, ctx_elem):
         '''Суммирование строк и/или графов'''
@@ -204,17 +203,17 @@ class ElemList:
             for elem in row:
                 getattr(elem, func)()
 
-    def _apply_binary(self, raw_data, func, elem):
+    def _apply_binary(self, raw_data, func, precision, elem):
         '''Выполнение бинарных операций (round, isnull)'''
-        arg = int(elem.check(raw_data, self, self.precision)[0].val)
+        arg = int(elem.check(raw_data, self, precision)[0].val)
         for row in self.elems:
             for elem in row:
                 getattr(elem, func)(arg)
 
-    def _apply_math(self, raw_data, func, elem):
+    def _apply_math(self, raw_data, func, precision, elem):
         '''Выполнение математических операций (add, sub, mul, truediv)'''
         left_operand = self._flatten_elems()
-        right_operand = elem.check(raw_data, self, self.precision)
+        right_operand = elem.check(raw_data, self, precision)
 
         operand_pairs = self._zip(left_operand, right_operand)
         self.elems.clear()
@@ -254,6 +253,7 @@ class ElemLogic(ElemList):
         self.op_name = operator.lower()
         self.op_func = operator_map[self.op_name]
 
+        self.precision = 2
         self.elems = []
 
     def __repr__(self):
@@ -261,14 +261,15 @@ class ElemLogic(ElemList):
                 'right={r_elem}>').format(**self.__dict__)
 
     def check(self, raw_data, ctx_elem=None, precision=2):
-        self._control(raw_data, precision)
+        self.precision = precision
+        self._control(raw_data)
         return self.elems
 
-    def _control(self, raw_data, precision):
+    def _control(self, raw_data):
         '''Подготовка элементов, слияние. Определение аттрибута контроля.
            Вызов метода проверки выполнения логического условия'''
-        l_elems = self.l_elem.check(raw_data, self.r_elem, precision)
-        r_elems = self.r_elem.check(raw_data, self.l_elem, precision)
+        l_elems = self.l_elem.check(raw_data, self.r_elem, self.precision)
+        r_elems = self.r_elem.check(raw_data, self.l_elem, self.precision)
         elems_pairs = self._zip(l_elems, r_elems)
 
         ctrl_attr = 'bool' if self.op_name in ('and', 'or') else 'val'
@@ -277,11 +278,21 @@ class ElemLogic(ElemList):
     def __control(self, elems_pairs, attr) -> None:
         '''Проверка пары на выполнение условий логического оператора'''
         for l_elem, r_elem in elems_pairs:
-            if not self.op_func(getattr(l_elem, attr), getattr(r_elem, attr)):
+            l_elem_v, r_elem_v = self.__get_elem_values(l_elem, r_elem, attr)
+
+            if l_elem_v is None or r_elem_v is None:
+                r_elem.control_fail(l_elem, self.op_name)
+            elif not self.op_func(l_elem_v, r_elem_v):
                 r_elem.control_fail(l_elem, self.op_name)
 
             r_elem.controls.extend(l_elem.controls)
             self.elems.append(r_elem)
+
+    def __get_elem_values(self, l_elem, r_elem, attr):
+        '''Округление и возвращение значений которые будут сравниваться'''
+        l_elem.round(self.precision)
+        r_elem.round(self.precision)
+        return getattr(l_elem, attr), getattr(r_elem, attr)
 
 
 class ElemSelector(ElemList):
@@ -289,7 +300,6 @@ class ElemSelector(ElemList):
         self.action = action.lower()
 
         self.rounded_off = False
-        self.precision = 2
         self.funcs = []
 
         self.elems = elems
@@ -299,20 +309,16 @@ class ElemSelector(ElemList):
                 'funcs={funcs} elems={elems}>').format(**self.__dict__)
 
     def check(self, raw_data, ctx_elem, precision):
-        self.precision = precision
-
-        self._select(raw_data, ctx_elem)
+        self._select(raw_data, ctx_elem, precision)
         self._apply_funcs(raw_data, ctx_elem)
         return self._flatten_elems()
 
-    def _select(self, raw_data, ctx_elem):
+    def _select(self, raw_data, ctx_elem, precision):
         '''Подготовка элементов, слияние. Очистка списка элементов.
            Вызов метода селектора по полю action'''
         elems_results = []
         for elem in self.elems:
-            elems_results.append(elem.check(raw_data,
-                                            ctx_elem,
-                                            self.precision))
+            elems_results.append(elem.check(raw_data, ctx_elem, precision))
         elems_results = self._zip(*elems_results)
 
         self.elems.clear()

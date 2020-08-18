@@ -83,7 +83,7 @@ class ControlChecker:
         if rule is None:
             return ['ошибка разбора']
 
-        for check in rule.check(data, precision=self.precision):
+        for check in rule.check(data, precision=int(self.precision)):
             res.extend(check.controls)
         return res
 
@@ -96,6 +96,6 @@ class ControlChecker:
         if control is None:
             return ['ошибка разбора']
 
-        for check in control.check(data, precision=self.precision):
+        for check in control.check(data, precision=int(self.precision)):
             res.extend(check.controls)
         return res

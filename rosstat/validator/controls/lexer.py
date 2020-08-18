@@ -70,7 +70,7 @@ def t_elem_CODE(t):
     return t
 
 
-@TOKEN(r'\d+')
+@TOKEN(r'\d+(\.\d+)?')
 def t_NUM(t):
     t.value = float(t.value)
     return t
