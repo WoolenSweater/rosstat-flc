@@ -5,6 +5,7 @@ from .elements import ElemLogic, ElemSelector, ElemList, Elem
 precedence = (
     ('left', 'LOGIC'),
     ('left', 'COMP'),
+    ('left', 'SUM'),
     ('left', 'PLUS', 'MINUS'),
     ('left', 'MULTIPLY', 'DIVIDE'),
     ('right', 'UMINUS'),            # Unary minus operator
@@ -32,6 +33,7 @@ def p_elem_selector(p):
 
 def p_elem_func(p):
     '''elem : ABS elem
+            | SUM elem
             | FLOOR elem'''
     p[0] = p[2]
     p[0].add_func(p[1].lower(), None)
@@ -71,8 +73,7 @@ def p_num_elem(p):
 
 def p_coords(p):
     '''coords : CODE
-              | coords CODE
-              | coords SPEC'''
+              | coords CODE'''
     if len(p) == 2:
         p[0] = [p[1]]
     else:

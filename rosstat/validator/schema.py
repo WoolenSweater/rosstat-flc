@@ -24,15 +24,15 @@ class Schema:
     def _prepare_form(self) -> dict:
         form = {}
         for section in self.xml.xpath('/metaForm/sections/section'):
-            section_code = int(section.attrib['code'])
+            section_code = section.attrib['code']
             form[section_code] = {}
 
             for row in section.xpath('./rows/row[@type!="C"]'):
-                row_code = int(row.attrib['code'])
+                row_code = row.attrib['code']
                 form[section_code][row_code] = {}
 
                 for cell in row.xpath('./cell'):
-                    cell_code = int(cell.attrib['column'])
+                    cell_code = cell.attrib['column']
                     input_type = cell.attrib['inputType']
                     cell_checker = CellChecker(cell, input_type, self.dics)
                     form[section_code][row_code][cell_code] = cell_checker
@@ -47,7 +47,7 @@ class Schema:
     def _get_defaults(self, section) -> dict:
         defaults = {}
         for cell in section.xpath('./columns/column[@type!="B"]/default-cell'):
-            cell_code = int(cell.attrib['column'])
+            cell_code = cell.attrib['column']
             input_type = cell.attrib['inputType']
             defaults[cell_code] = CellChecker(cell, input_type, self.dics)
         return defaults
@@ -100,22 +100,27 @@ class Schema:
 
         diff = set(fields) - self.title
         if diff:
-            self._errors.append(f'Лишнее поле(я) "{diff}" в блоке title')
+            diffs = ','.join(list(diff))
+            self._errors.append(f'Лишнее поле(я) "{diffs}" в блоке title')
 
     def _check_required(self, report) -> None:
+        errors = set()
         for section, row, col in self._required:
-            try:
-                check = report.data[section][row][col]
-            except KeyError:
-                self._errors.append(f'Раздел {section}, строка {row}, '
-                                    f'графа {col} обязательна для заполнения')
+            for row in report.get_section(section).get_rows(row):
+                if not row.get_entry(col):
+                    errors.add(f'Раздел {section}, строка {row}, '
+                               f'графа {col} обязательна для заполнения')
+        self._errors.extend(errors)
 
     def _check_form(self, report) -> None:
-        for s_idx, section in report.data.items():
-            for r_idx, row in section.items():
-                for c_idx, cell in row.items():
-                    cell_checker = self.__get_cell_checker(s_idx, r_idx, c_idx)
-                    cell_checker.check(cell, self._errors)
+        for s_idx, section in report.items():
+            for r_idx, rows in section.items():
+                for row in rows:
+                    for c_idx, cell in row.items():
+                        cell_checker = self.__get_cell_checker(s_idx,
+                                                               r_idx,
+                                                               c_idx)
+                        cell_checker.check(cell, self._errors)
 
     def __get_cell_checker(self, s_idx, r_idx, c_idx) -> CellChecker:
         try:
@@ -125,4 +130,4 @@ class Schema:
 
     def _check_controls(self, report):
         for control in self.controls:
-            control.check(report.data, self._errors)
+            control.check(report, self._errors)

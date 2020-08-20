@@ -63,13 +63,23 @@ class ControlChecker:
 
         rule_checks = self._check_rule(data)
         if len(rule_checks) != 0:
-            template = '{} {} - Контроль не пройден, {}'
-            self._fmt_error(rule_checks, errors_list, template)
+            self._fmt_error(rule_checks, errors_list)
             return
 
-    def _fmt_error(self, check_list, errors_list, template):
+    def _fmt_error(self, check_list, errors_list):
+        template = '{} {}; слева {} {} справа {} разница {}'
         for check in check_list:
-            errors_list.append(template.format(self.id, self.name, check))
+            if isinstance(check, str):
+                errors_list.append('{} {}; {}'.format(self.id,
+                                                      self.name,
+                                                      check))
+            else:
+                errors_list.append(template.format(self.id,
+                                                   self.name,
+                                                   check['left'],
+                                                   check['operator'],
+                                                   check['right'],
+                                                   check['delta']))
 
     def _check_period(self):
         return True
@@ -92,10 +102,10 @@ class ControlChecker:
         if not self.condition:
             return res
 
-        control = control_parser.parse(self.condition)
-        if control is None:
+        condition = control_parser.parse(self.condition)
+        if condition is None:
             return ['ошибка разбора']
 
-        for check in control.check(data, precision=int(self.precision)):
+        for check in condition.check(data, precision=int(self.precision)):
             res.extend(check.controls)
         return res

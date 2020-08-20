@@ -21,12 +21,12 @@ operator_map = {
 
 
 class Elem:
-    def __init__(self, val, section=None, rows=None, entries=None):
-        self.section = section or ''
-        self.rows = set([rows]) if rows else set()
-        self.entries = set([entries]) if entries else set()
+    def __init__(self, val, section=[], rows=[], entries=[]):
+        self.section = set(section)
+        self.rows = set(rows)
+        self.entries = set(entries)
         # Возможно стоит выпилить координаты из элементов
-        # они не всегда информативны и могу даже сбить с толку
+        # они часто не информативны и могу сбить с толку
 
         self._controls = []
 
@@ -50,29 +50,16 @@ class Elem:
         return self
 
     def __repr__(self):
-        return ('<Elem [{section}]{rows_f}{entries_f} controls={_controls}: '
-                '{val} {bool}>').format(**self.__dict__,
-                                        rows_f=list(self.rows),
-                                        entries_f=list(self.entries))
-
-    def __fmt_fail_msg(self, l_elem, op_name):
-        if op_name in ('and', 'or'):
-            l_val, r_val = l_elem.bool, self.bool
-        else:
-            l_val, r_val = l_elem.val, self.val
-
-        return '[{}]{}{} {} {} [{}]{}{} {}'.format(
-            l_elem.section, list(l_elem.rows), list(l_elem.entries), l_val,
-            op_name, self.section, list(self.rows), list(self.entries), r_val
-        )
+        return ('<Elem {}{}{}: {} {}>').format(
+            sorted(int(i) for i in self.section),
+            sorted(int(i) for i in self.rows if i.isdigit()),
+            sorted(int(i) for i in self.entries if i.isdigit()),
+            self.val, self.bool)
 
     def __modify(self, elem, op_func):
         self.rows |= elem.rows
         self.entries |= elem.entries
-        if self.val is None or elem.val is None:
-            self.val = None
-        else:
-            self.val = op_func(self.val, elem.val)
+        self.val = op_func(self.val, elem.val)
         return self
 
     @property
@@ -81,9 +68,14 @@ class Elem:
 
     def control_fail(self, l_elem, op_name):
         self.bool = False
-        self._controls.append(self.__fmt_fail_msg(l_elem, op_name))
+        self._controls.append({
+            'left': l_elem.val,
+            'right': self.val,
+            'operator': op_name,
+            'delta': l_elem.val - self.val
+        })
 
-    def check(self, raw_data, ctx_elem, precision):
+    def check(self, report, ctx_elem, precision):
         return [self]
 
     def isnull(self, replace):
@@ -92,8 +84,6 @@ class Elem:
 
     def round(self, ndig, trunc=0):
         '''Округление/отсечение до ndig знаков'''
-        if self.val is None:
-            return
         if trunc > 0:
             self.val = float(f'{self.val:.{abs(ndig)}f}')
         else:
@@ -101,81 +91,59 @@ class Elem:
 
     def abs(self):
         '''Выполнение функции abs над значением'''
-        self.val = None if self.val is None else abs(self.val)
+        self.val = abs(self.val)
 
     def floor(self):
         '''Выполнение функции floor над значением'''
-        self.val = None if self.val is None else floor(self.val)
+        self.val = floor(self.val)
 
 
 class ElemList:
-    def __init__(self,
-                 section=None, rows=None, entries=None,
-                 s1=None, s2=None, s3=None):
-        self.section = section[0] if section is not None else ''
-        self.rows = rows or []
-        self.entries = entries or []
+    def __init__(self, section, rows, entries,
+                 s1=[None], s2=[None], s3=[None]):
+        self.section = section[0]
+        self.rows = set(rows)
+        self.entries = set(entries)
 
-        self.specs = [(1, None if s1 is None else s1[0]),
-                      (2, None if s2 is None else s2[0]),
-                      (3, None if s3 is None else s3[0])]
+        self.specs = {1: set(s1), 2: set(s2), 3: set(s3)}
 
-        self.rounded_off = False
         self.funcs = []
         self.elems = []
 
     def __repr__(self) -> str:
-        return ('<ElemList [{section}]{rows}{entries} specs={specs} '
-                'rounded_off={rounded_off} funcs={funcs} '
-                'elems={elems}>').format(**self.__dict__)
+        return '<ElemList [{}]{}{} funcs={} elems={}>'.format(
+            self.section,
+            sorted(int(i) for i in self.rows if i.isdigit()),
+            sorted(int(i) for i in self.entries if i.isdigit()),
+            self.funcs, self.elems)
 
     def __neg__(self) -> None:
-        for row in self.elems:
-            for elem in row:
-                operator.neg(elem)
+        self._apply_unary('neg')
         return self
 
-    def check(self, raw_data, ctx_elem, precision) -> list:
-        self._check_coords(raw_data)
-        self._read_data(raw_data)
-        self._apply_funcs(raw_data, ctx_elem, precision)
+    def check(self, report, ctx_elem, precision) -> list:
+        self._read_data(report)
+        self._apply_funcs(report, ctx_elem, precision)
         return self._flatten_elems()
 
-    def _check_coords(self, raw_data) -> None:
-        '''Замена * на реальные значения ключей массивов'''
-        if self.rows == ['*']:
-            raw_section = raw_data[self.section]
-            self.rows = [raw_section.keys()]
-
-        if self.entries == ['*']:
-            raw_row = raw_data[self.section][self.rows[0]]
-            self.entries = [k for k in raw_row.keys() if isinstance(k, int)]
-
-    def _read_data(self, raw_data) -> None:
+    def _read_data(self, report) -> None:
         '''Заполнение массива элементами удовлетворяющими условиям специфик'''
-        raw_section = raw_data.get(self.section, {})
+        raw_sec = report.get_section(self.section)
         for row_code in self.rows:
-            raw_row = raw_section.get(row_code, {})
-            if not self.__check_spec(raw_row):
-                continue
-            row = []
-            for entry_code in self.entries:
-                row.append(Elem(raw_row.get(entry_code),
-                                section=self.section,
-                                rows=row_code,
-                                entries=entry_code))
-            self.elems.append(row)
+            raw_rows = raw_sec.get_rows(row_code, self.specs)
+            for raw_row in raw_rows:
+                row = []
+                for entry_code in self.entries:
+                    entry = raw_row.get_entry(entry_code)
+                    if entry:
+                        row.append(Elem(entry,
+                                        section=[self.section],
+                                        rows=[row_code],
+                                        entries=[entry_code]))
+                if row:
+                    self.elems.append(row)
 
-    def __check_spec(self, raw_row) -> bool:
-        '''Проверка удовлетворения строки набору специфик'''
-        for idx, spec in self.specs:
-            if spec is None or spec == '*':
-                continue
-            elif raw_row.get(f's{idx}') != spec:
-                return False
-        return True
-
-    def _apply_funcs(self, raw_data, ctx_elem, precision):
+    def _apply_funcs(self, report, ctx_elem, precision):
         '''Выполнение функций на эелементах массива'''
         for func, args in self.funcs:
             if func == 'sum':
@@ -183,37 +151,37 @@ class ElemList:
             elif func in ('abs', 'floor'):
                 self._apply_unary(func)
             elif func in ('round', 'isnull'):
-                self._apply_binary(raw_data, func, precision, *args)
+                self._apply_binary(report, func, precision, *args)
             else:
-                self._apply_math(raw_data, func, precision, *args)
+                self._apply_math(report, func, precision, *args)
 
     def _apply_sum(self, ctx_elem):
         '''Суммирование строк и/или графов'''
-        if set(self.entries) == set(ctx_elem.entries):  # строк в каждой графе
+        if self.entries == ctx_elem.entries:  # строк в каждой графе
             self.elems = [[reduce(operator.add, l)] for l in zip(*self.elems)]
-        else:                                           # граф в каждой строке
+        else:                                 # граф в каждой строке
             self.elems = [[reduce(operator.add, l)] for l in self.elems]
 
-        if set(self.rows) != set(ctx_elem.rows):        # всех элементов
+        if self.rows != ctx_elem.rows:        # всех элементов
             self.elems = [[reduce(operator.add, chain(*self.elems))]]
 
     def _apply_unary(self, func):
-        '''Выполнение унарных операций (abs, floor)'''
+        '''Выполнение унарных операций (abs, floor, neg)'''
         for row in self.elems:
             for elem in row:
                 getattr(elem, func)()
 
-    def _apply_binary(self, raw_data, func, precision, elem):
+    def _apply_binary(self, report, func, precision, elem):
         '''Выполнение бинарных операций (round, isnull)'''
-        arg = int(elem.check(raw_data, self, precision)[0].val)
+        arg = int(elem.check(report, self, precision)[0].val)
         for row in self.elems:
             for elem in row:
                 getattr(elem, func)(arg)
 
-    def _apply_math(self, raw_data, func, precision, elem):
+    def _apply_math(self, report, func, precision, elem):
         '''Выполнение математических операций (add, sub, mul, truediv)'''
         left_operand = self._flatten_elems()
-        right_operand = elem.check(raw_data, self, precision)
+        right_operand = elem.check(report, self, precision)
 
         operand_pairs = self._zip(left_operand, right_operand)
         self.elems.clear()
@@ -229,9 +197,9 @@ class ElemList:
            [1, 2], [3], [4, 5] > [1, 2], [3, 3], [4, 5] > [1, 3, 4], [2, 3, 5]
         '''
         smallest, *_, biggest = sorted(lists, key=len)
-        if len(smallest) != len(biggest) and len(smallest) == 1:
+        if len(smallest) == 0:
             lists = list(lists)
-            s_idx, s_elem = lists.index(smallest), smallest[0]
+            s_idx, s_elem = lists.index(smallest), Elem(0)
             lists[s_idx] = [deepcopy(s_elem) for _ in range(len(biggest))]
         return zip(*lists)
 
@@ -241,8 +209,6 @@ class ElemList:
 
     def add_func(self, func, *args):
         '''Добавляем функцию в "очередь" при парсинге'''
-        if func == 'round':
-            self.rounded_off = True
         self.funcs.append((func, args))
 
 
@@ -257,19 +223,19 @@ class ElemLogic(ElemList):
         self.elems = []
 
     def __repr__(self):
-        return ('<ElemLogic left={l_elem} operator="{op_name}" '
-                'right={r_elem}>').format(**self.__dict__)
+        return '<ElemLogic left={} operator="{}" right={}>'.format(
+            self.l_elem, self.op_name, self.r_elem)
 
-    def check(self, raw_data, ctx_elem=None, precision=2):
+    def check(self, report, ctx_elem=None, precision=2):
         self.precision = precision
-        self._control(raw_data)
+        self._control(report)
         return self.elems
 
-    def _control(self, raw_data):
+    def _control(self, report):
         '''Подготовка элементов, слияние. Определение аттрибута контроля.
            Вызов метода проверки выполнения логического условия'''
-        l_elems = self.l_elem.check(raw_data, self.r_elem, self.precision)
-        r_elems = self.r_elem.check(raw_data, self.l_elem, self.precision)
+        l_elems = self.l_elem.check(report, self.r_elem, self.precision)
+        r_elems = self.r_elem.check(report, self.l_elem, self.precision)
         elems_pairs = self._zip(l_elems, r_elems)
 
         ctrl_attr = 'bool' if self.op_name in ('and', 'or') else 'val'
@@ -280,9 +246,7 @@ class ElemLogic(ElemList):
         for l_elem, r_elem in elems_pairs:
             l_elem_v, r_elem_v = self.__get_elem_values(l_elem, r_elem, attr)
 
-            if l_elem_v is None or r_elem_v is None:
-                r_elem.control_fail(l_elem, self.op_name)
-            elif not self.op_func(l_elem_v, r_elem_v):
+            if not self.op_func(l_elem_v, r_elem_v):
                 r_elem.control_fail(l_elem, self.op_name)
 
             r_elem.controls.extend(l_elem.controls)
@@ -298,27 +262,24 @@ class ElemLogic(ElemList):
 class ElemSelector(ElemList):
     def __init__(self, action, elems):
         self.action = action.lower()
-
-        self.rounded_off = False
         self.funcs = []
-
         self.elems = elems
 
     def __repr__(self):
-        return ('<ElemSelector action={action} rounded_off={rounded_off} '
-                'funcs={funcs} elems={elems}>').format(**self.__dict__)
+        return '<ElemSelector action={} funcs={} elems={}>'.format(
+            self.action, self.funcs, self.elems)
 
-    def check(self, raw_data, ctx_elem, precision):
-        self._select(raw_data, ctx_elem, precision)
-        self._apply_funcs(raw_data, ctx_elem)
+    def check(self, report, ctx_elem, precision):
+        self._select(report, ctx_elem, precision)
+        self._apply_funcs(report, ctx_elem)
         return self._flatten_elems()
 
-    def _select(self, raw_data, ctx_elem, precision):
+    def _select(self, report, ctx_elem, precision):
         '''Подготовка элементов, слияние. Очистка списка элементов.
            Вызов метода селектора по полю action'''
         elems_results = []
         for elem in self.elems:
-            elems_results.append(elem.check(raw_data, ctx_elem, precision))
+            elems_results.append(elem.check(report, ctx_elem, precision))
         elems_results = self._zip(*elems_results)
 
         self.elems.clear()
