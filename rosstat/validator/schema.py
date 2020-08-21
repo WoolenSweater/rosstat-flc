@@ -71,20 +71,21 @@ class Schema:
 
     def validate(self, report) -> list:
         try:
-            for check_name in ('title', 'required', 'form', 'controls'):
-                self._check(check_name, report)
-        except ValidationError:
-            print('Validation Error')
+            self._check(('title', 'required', 'form', 'controls'), report)
+        except ValidationError as ex:
+            self._errors.append(ex)
+            print('Validation Error', traceback.format_exc())
         except Exception as ex:
             self._errors.append('Непредвиденная ошибка')
             print('Unexpected Error', traceback.format_exc())
         finally:
             return self._errors
 
-    def _check(self, name, report) -> None:
-        getattr(self, f'_check_{name}')(report)
-        if self._errors:
-            raise ValidationError
+    def _check(self, check_names, report) -> None:
+        for name in check_names:
+            getattr(self, f'_check_{name}')(report)
+            if self._errors:
+                break
 
     def _check_title(self, report) -> None:
         fields = list(report.title.keys())
@@ -130,4 +131,9 @@ class Schema:
 
     def _check_controls(self, report):
         for control in self.controls:
-            control.check(report, self._errors)
+            try:
+                control.check(report, self._errors)
+            except ValidationError:
+                raise
+            except Exception as ex:
+                raise ValidationError(f'Ошибка при проверке {control.id}')

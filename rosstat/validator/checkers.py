@@ -1,3 +1,4 @@
+from .exceptions import ValidationError
 from .controls import parser as control_parser
 
 
@@ -56,9 +57,7 @@ class ControlChecker:
     def check(self, data, errors_list):
         if not self._check_period():
             return
-
-        condition_checks = self._check_condition(data)
-        if len(condition_checks) != 0:
+        if not self._check_condition(data):
             return
 
         rule_checks = self._check_rule(data)
@@ -84,6 +83,19 @@ class ControlChecker:
     def _check_period(self):
         return True
 
+    def _check_condition(self, data):
+        if not self.condition:
+            return True
+
+        condition = control_parser.parse(self.condition)
+        if condition is None:
+            raise ValidationError(f'ошибка разбора условия {self.id}')
+
+        for check in condition.check(data, precision=int(self.precision)):
+            if len(check.controls) != 0:
+                return False
+        return True
+
     def _check_rule(self, data):
         res = []
         if not self.rule:
@@ -91,21 +103,8 @@ class ControlChecker:
 
         rule = control_parser.parse(self.rule)
         if rule is None:
-            return ['ошибка разбора']
+            raise ValidationError(f'ошибка разбора правила {self.id}')
 
         for check in rule.check(data, precision=int(self.precision)):
-            res.extend(check.controls)
-        return res
-
-    def _check_condition(self, data):
-        res = []
-        if not self.condition:
-            return res
-
-        condition = control_parser.parse(self.condition)
-        if condition is None:
-            return ['ошибка разбора']
-
-        for check in condition.check(data, precision=int(self.precision)):
             res.extend(check.controls)
         return res

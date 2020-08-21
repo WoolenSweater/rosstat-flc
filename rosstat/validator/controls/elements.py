@@ -21,7 +21,8 @@ operator_map = {
 
 
 class Elem:
-    def __init__(self, val, section=[], rows=[], entries=[]):
+    def __init__(self, val, section=[], rows=[], entries=[],
+                 stub=False, scalar=False):
         self.section = set(section)
         self.rows = set(rows)
         self.entries = set(entries)
@@ -30,6 +31,8 @@ class Elem:
 
         self._controls = []
 
+        self.scalar = scalar
+        self.stub = stub
         self.bool = True
         self.val = None if val is None else float(val)
 
@@ -50,16 +53,19 @@ class Elem:
         return self
 
     def __repr__(self):
-        return ('<Elem {}{}{}: {} {}>').format(
+        return ('<Elem {}{}{} stub={} scalar={}: {} {}>').format(
             sorted(int(i) for i in self.section),
             sorted(int(i) for i in self.rows if i.isdigit()),
             sorted(int(i) for i in self.entries if i.isdigit()),
-            self.val, self.bool)
+            self.stub, self.scalar, self.val, self.bool)
 
     def __modify(self, elem, op_func):
         self.rows |= elem.rows
         self.entries |= elem.entries
-        self.val = op_func(self.val, elem.val)
+        try:
+            self.val = op_func(self.val, elem.val)
+        except ZeroDivisionError:
+            pass
         return self
 
     @property
@@ -72,15 +78,16 @@ class Elem:
             'left': l_elem.val,
             'right': self.val,
             'operator': op_name,
-            'delta': l_elem.val - self.val
+            'delta': round(l_elem.val - self.val, 2)
         })
 
-    def check(self, report, ctx_elem, precision):
+    def check(self, *args):
         return [self]
 
     def isnull(self, replace):
-        '''Замена None на replace'''
+        '''Замена None на replace. Так же снимает признак "заглушки"'''
         self.val = self.val or float(replace)
+        self.stub = False
 
     def round(self, ndig, trunc=0):
         '''Округление/отсечение до ndig знаков'''
@@ -130,18 +137,30 @@ class ElemList:
         '''Заполнение массива элементами удовлетворяющими условиям специфик'''
         raw_sec = report.get_section(self.section)
         for row_code in self.rows:
-            raw_rows = raw_sec.get_rows(row_code, self.specs)
+            raw_rows = list(raw_sec.get_rows(row_code, self.specs))
+            if not raw_rows:
+                self._read_entries(row_code, raw_row=None)
+                return
             for raw_row in raw_rows:
-                row = []
-                for entry_code in self.entries:
-                    entry = raw_row.get_entry(entry_code)
-                    if entry:
-                        row.append(Elem(entry,
-                                        section=[self.section],
-                                        rows=[row_code],
-                                        entries=[entry_code]))
-                if row:
-                    self.elems.append(row)
+                self._read_entries(row_code, raw_row=raw_row)
+
+    def _read_entries(self, row_code, raw_row=None):
+        row = []
+        for entry_code in self.entries:
+            entry, stub = self._read_enrty_val(entry_code, raw_row)
+            row.append(Elem(entry,
+                            section=[self.section],
+                            rows=[row_code],
+                            entries=[entry_code],
+                            stub=stub))
+        if row:
+            self.elems.append(row)
+
+    def _read_enrty_val(self, entry_code, raw_row):
+        if raw_row is None:
+            return 0, True
+        entry = raw_row.get_entry(entry_code)
+        return (entry, False) if entry else (0, True)
 
     def _apply_funcs(self, report, ctx_elem, precision):
         '''Выполнение функций на эелементах массива'''
@@ -151,7 +170,7 @@ class ElemList:
             elif func in ('abs', 'floor'):
                 self._apply_unary(func)
             elif func in ('round', 'isnull'):
-                self._apply_binary(report, func, precision, *args)
+                self._apply_binary(report, func, precision, args)
             else:
                 self._apply_math(report, func, precision, *args)
 
@@ -171,12 +190,12 @@ class ElemList:
             for elem in row:
                 getattr(elem, func)()
 
-    def _apply_binary(self, report, func, precision, elem):
+    def _apply_binary(self, report, func, precision, args):
         '''Выполнение бинарных операций (round, isnull)'''
-        arg = int(elem.check(report, self, precision)[0].val)
+        args = [int(e.check(report, self, precision)[0].val) for e in args]
         for row in self.elems:
             for elem in row:
-                getattr(elem, func)(arg)
+                getattr(elem, func)(*args)
 
     def _apply_math(self, report, func, precision, elem):
         '''Выполнение математических операций (add, sub, mul, truediv)'''
@@ -197,9 +216,9 @@ class ElemList:
            [1, 2], [3], [4, 5] > [1, 2], [3, 3], [4, 5] > [1, 3, 4], [2, 3, 5]
         '''
         smallest, *_, biggest = sorted(lists, key=len)
-        if len(smallest) == 0:
+        if len(smallest) != len(biggest) and len(smallest) == 1:
             lists = list(lists)
-            s_idx, s_elem = lists.index(smallest), Elem(0)
+            s_idx, s_elem = lists.index(smallest), smallest[0]
             lists[s_idx] = [deepcopy(s_elem) for _ in range(len(biggest))]
         return zip(*lists)
 
@@ -244,13 +263,25 @@ class ElemLogic(ElemList):
     def __control(self, elems_pairs, attr) -> None:
         '''Проверка пары на выполнение условий логического оператора'''
         for l_elem, r_elem in elems_pairs:
-            l_elem_v, r_elem_v = self.__get_elem_values(l_elem, r_elem, attr)
+            if not self.__can_logic_control(l_elem, r_elem):
+                r_elem.controls.extend(l_elem.controls)
+                continue
 
+            l_elem_v, r_elem_v = self.__get_elem_values(l_elem, r_elem, attr)
             if not self.op_func(l_elem_v, r_elem_v):
                 r_elem.control_fail(l_elem, self.op_name)
 
             r_elem.controls.extend(l_elem.controls)
             self.elems.append(r_elem)
+
+    def __can_logic_control(self, l_elem, r_elem):
+        if l_elem.stub and r_elem.stub:
+            return False
+        elif l_elem.stub and r_elem.scalar:
+            return False
+        elif l_elem.scalar and r_elem.stub:
+            return False
+        return True
 
     def __get_elem_values(self, l_elem, r_elem, attr):
         '''Округление и возвращение значений которые будут сравниваться'''

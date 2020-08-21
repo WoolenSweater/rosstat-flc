@@ -40,9 +40,9 @@ def p_elem_func(p):
 
 
 def p_elem_func_args(p):
-    '''elem : ISNULL elems
-            | ROUND elems'''
-    p[0], *args = p[2]
+    '''elem : ISNULL LPAREN elems RPAREN
+            | ROUND LPAREN elems RPAREN'''
+    p[0], *args = p[3]
     p[0].add_func(p[1].lower(), *args)
 
 
@@ -68,7 +68,7 @@ def p_elem(p):
 
 def p_num_elem(p):
     '''elem : NUM'''
-    p[0] = Elem(p[1])
+    p[0] = Elem(p[1], scalar=True)
 
 
 def p_coords(p):

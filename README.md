@@ -8,7 +8,7 @@
 
 ## Установка
 ```bash
-pip install https://github.com/WoolenSweater/rosstat_flc
+pip install git+https://github.com/WoolenSweater/rosstat_flc
 ```
 
 ## Зависимости
