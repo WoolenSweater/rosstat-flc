@@ -5,9 +5,9 @@ from .elements import ElemLogic, ElemSelector, ElemList, Elem
 precedence = (
     ('left', 'LOGIC'),
     ('left', 'COMP'),
-    ('left', 'SUM'),
     ('left', 'PLUS', 'MINUS'),
     ('left', 'MULTIPLY', 'DIVIDE'),
+    ('left', 'SUM'),
     ('right', 'UMINUS'),            # Unary minus operator
 )
 

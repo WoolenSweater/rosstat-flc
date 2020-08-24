@@ -140,7 +140,7 @@ class ElemList:
             raw_rows = list(raw_sec.get_rows(row_code, self.specs))
             if not raw_rows:
                 self._read_entries(row_code, raw_row=None)
-                return
+                continue
             for raw_row in raw_rows:
                 self._read_entries(row_code, raw_row=raw_row)
 

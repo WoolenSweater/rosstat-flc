@@ -56,6 +56,8 @@ class Report:
     xml: InitVar[_ElementTree]
     _title: Dict[str, str] = None
     _data: Dict[str, Section] = None
+    _period_type: str = '1'
+    _period_code: str = '1'
 
     def __repr__(self):
         return '<Report title={_title}\ndata={_data}>'.format(**self.__dict__)
@@ -64,9 +66,19 @@ class Report:
         self._title = self._read_title(xml)
         self._data = self._read_data(xml)
 
+        self._get_periods(xml)
+
     @property
     def title(self):
         return self._title
+
+    @property
+    def period_type(self):
+        return self._period_type
+
+    @property
+    def period_code(self):
+        return self._period_code
 
     def items(self):
         for k, v in self._data.items():
@@ -101,3 +113,12 @@ class Report:
 
     def _read_row_specs(self, row):
         return (row.attrib.get(f's{i}') for i in range(1, 4))
+
+    def _get_periods(self, xml):
+        period = xml.getroot().attrib['period']
+        if len(period) != 4:
+            self._period_code = str(int(period))
+        else:
+            period_type, period_code = period[:2], period[2:]
+            self._period_type = str(int(period_type))
+            self._period_code = str(int(period_code))

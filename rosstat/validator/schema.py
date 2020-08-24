@@ -9,6 +9,7 @@ class Schema:
         self._required = []
         self._errors = []
 
+        self.idp = self._get_idp()
         self.title = self._prepare_title()
         self.dics = self._prepare_dics()
         self.form = self._prepare_form()
@@ -17,6 +18,9 @@ class Schema:
     def __repr__(self) -> str:
         return ('<Schema title={title}\nform={form}\ncontrols={controls}\n'
                 'dics={dics}>').format(**self.__dict__)
+
+    def _get_idp(self):
+        return str(int(self.xml.getroot().attrib['idp']))
 
     def _prepare_title(self) -> set:
         return set(f for f in self.xml.xpath('/metaForm/title/item/@field'))
@@ -71,7 +75,8 @@ class Schema:
 
     def validate(self, report) -> list:
         try:
-            self._check(('title', 'required', 'form', 'controls'), report)
+            check_list = ('period', 'title', 'required', 'form', 'controls')
+            self._check(check_list, report)
         except ValidationError as ex:
             self._errors.append(ex)
             print('Validation Error', traceback.format_exc())
@@ -81,11 +86,16 @@ class Schema:
         finally:
             return self._errors
 
-    def _check(self, check_names, report) -> None:
-        for name in check_names:
+    def _check(self, check_list, report) -> None:
+        for name in check_list:
             getattr(self, f'_check_{name}')(report)
             if self._errors:
                 break
+
+    def _check_period(self, report):
+        if self.idp != report.period_type:
+            self._errors.append('Тип периодичности отчёта не соответствует '
+                                'типу периодичности шаблона')
 
     def _check_title(self, report) -> None:
         fields = list(report.title.keys())

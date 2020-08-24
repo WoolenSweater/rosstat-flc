@@ -1,4 +1,4 @@
-from .exceptions import ValidationError
+from .controls.period import PeriodClause
 from .controls import parser as control_parser
 
 
@@ -45,8 +45,9 @@ class ControlChecker:
 
         self.tip = control.attrib.get('tip', '1')
         self.fault = control.attrib.get('fault', '0')
-        self.period = control.attrib.get('periodClause')
         self.precision = control.attrib.get('precision', '2')
+
+        self.period = PeriodClause(control, self.id)
 
     def __repr__(self):
         return ('<ControlChecker id={id} name={name} rule={rule} '
@@ -54,13 +55,13 @@ class ControlChecker:
                 'period={period} precision={precision}>').format(
                     **self.__dict__)
 
-    def check(self, data, errors_list):
-        if not self._check_period():
+    def check(self, report, errors_list):
+        if not self._check_period(report):
             return
-        if not self._check_condition(data):
+        if not self._check_condition(report):
             return
 
-        rule_checks = self._check_rule(data)
+        rule_checks = self._check_rule(report)
         if len(rule_checks) != 0:
             self._fmt_error(rule_checks, errors_list)
             return
@@ -80,10 +81,10 @@ class ControlChecker:
                                                    check['right'],
                                                    check['delta']))
 
-    def _check_period(self):
-        return True
+    def _check_period(self, report):
+        return self.period.check(report)
 
-    def _check_condition(self, data):
+    def _check_condition(self, report):
         if not self.condition:
             return True
 
@@ -91,12 +92,12 @@ class ControlChecker:
         if condition is None:
             raise ValidationError(f'ошибка разбора условия {self.id}')
 
-        for check in condition.check(data, precision=int(self.precision)):
+        for check in condition.check(report, precision=int(self.precision)):
             if len(check.controls) != 0:
                 return False
         return True
 
-    def _check_rule(self, data):
+    def _check_rule(self, report):
         res = []
         if not self.rule:
             return res
@@ -105,6 +106,6 @@ class ControlChecker:
         if rule is None:
             raise ValidationError(f'ошибка разбора правила {self.id}')
 
-        for check in rule.check(data, precision=int(self.precision)):
+        for check in rule.check(report, precision=int(self.precision)):
             res.extend(check.controls)
         return res
