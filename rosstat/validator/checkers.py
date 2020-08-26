@@ -1,37 +1,96 @@
 from .controls.period import PeriodClause
 from .controls import parser as control_parser
+from .exceptions import ValidationError, InvalidValue
 
 
 class CellChecker:
-    def __init__(self, cell, input_type, dics):
+    def __init__(self, cell, dics, input_type, row_type=None):
         self._cell = cell
         self._dics = dics
 
+        self.row_type = row_type
         self.input_type = input_type
+
         self.dic = cell.attrib.get('dic')
-        self.default = cell.attrib.get('default')
-        self.vld_type = cell.attrib.get('vld_type', '0')
-        self.vld_param = self._get_vld_param()
+        self.format = cell.attrib.get('format')
+        self.vld_type = cell.attrib.get('vldType')
+        self.vld_param = cell.attrib.get('vld')
+
+        self.format_funcs_map = {'N': self._is_num, 'C': self._is_chars}
 
     def __repr__(self):
-        return ('<CellChecker input={input_type} dic={dic} default={default} '
-                'vld_type={vld_type} vld_param={vld_param}>').format(
-                    **self.__dict__)
+        return ('<CellChecker row={row_type} input={input_type} '
+                'format={format} vld_type={vld_type} '
+                'vld_param={vld_param}>').format(**self.__dict__)
 
-    def _get_vld_param(self):
-        if self.vld_type in ('1', '4'):
-            return self._cell.attrib.get('vld')
+    @classmethod
+    def _is_num(self, value, limits):
+        try:
+            _ = float(value)
+        except ValueError:
+            raise InvalidValue('Значение не является числом')
+
+        value_parts = tuple(len(n) for n in value.split('.'))
+        if len(value_parts) == 1:
+            i_part_len, f_part_len = value_parts[0], 0
+        else:
+            i_part_len, f_part_len = value_parts[0], value_parts[1]
+        i_part_lim, f_part_lim = (int(n) for n in limits.split(','))
+
+        if not (i_part_len <= i_part_lim and f_part_len <= f_part_lim):
+            print(i_part_len, f_part_len, i_part_lim, f_part_lim)
+            raise InvalidValue('Число не соответствует формату')
+
+    @classmethod
+    def _is_chars(self, value, limit):
+        if not len(value) <= limit:
+            raise InvalidValue('Длина строки больше допустимого')
+
+    def check(self, cell):
+        check_list = ('format', 'value')
+        for name in check_list:
+            getattr(self, f'_check_{name}')(cell)
+
+    def _check_format(self, cell):
+        alias, args = self.format.strip(' )').split('(')
+        format_check_func = self.format_funcs_map[alias]
+        format_check_func(cell, args)
+
+    def _check_value(self, cell):
+        if self.vld_type == '1':
+            self.__check_value_dic(cell)
         elif self.vld_type == '2':
-            start, end = self._cell.attrib.get('vld').split('-')
-            return list(range(int(start), int(end) + 1))
+            self.__check_value_range(cell)
         elif self.vld_type == '3':
-            return self._cell.attrib.get('vld').split(',')
+            self.__check_value_list(cell)
+        elif self.vld_type == '4':
+            self.__check_value_dic_add(cell)
         elif self.vld_type == '5':
-            attr, coords = self._cell.attrib.get('vld').split('=#')
-            return (attr, coords.split(','))
+            self.__check_value_dic_coord(cell)
 
-    def check(self, cell, errors_list):
-        pass
+    def __check_value_dic(self, cell):
+        if cell not in self._dics[self.dic]:
+            raise InvalidValue('Значение не существует в справочнике')
+
+    def __check_value_range(self, cell):
+        cell = float(cell)
+        start, end = (int(n) for n in self.vld_param.split('-'))
+        if not (cell >= start and cell <= end):
+            raise InvalidValue('Значение не входит в диапазон допустимых')
+
+    def __check_value_list(self, cell):
+        if cell not in self.vld_param.split(','):
+            raise InvalidValue('Значение не входит в список допустимых')
+
+    def __check_value_dic_add(self, cell):
+        if cell not in self._dics[self.vld_param]:
+            raise InvalidValue('Значение не существует в '
+                               'справочнике приложении')
+
+    def __check_value_coord(self, cell):
+        return  # пока не ясно как это првоеряется
+        attr, coords = self.vld_param.split('=#')
+        s_idx, r_idx, c_idx = coords.split(',')
 
 
 class ControlChecker:
@@ -64,7 +123,6 @@ class ControlChecker:
         rule_checks = self._check_rule(report)
         if len(rule_checks) != 0:
             self._fmt_error(rule_checks, errors_list)
-            return
 
     def _fmt_error(self, check_list, errors_list):
         template = '{} {}; слева {} {} справа {} разница {}'

@@ -3,7 +3,7 @@ from ..exceptions import ValidationError
 
 in_pattern = re.compile(r'^\(&NP\s?in\s?\(([\d, ]+)\)\)$', re.I)
 sp_pattern = re.compile(r'^\(&NP\s?([><=]+)\s?(\d+)\)$', re.I)
-lg_pattern = re.compile(r'^\(&NP\s?([><=]+)\s?(\d+)\s?(and|or)\s?'
+cp_pattern = re.compile(r'^\(&NP\s?([><=]+)\s?(\d+)\s?(and|or)\s?'
                         r'&NP\s?([><=]+)\s?(\d+)\)$', re.I)
 
 
@@ -22,7 +22,7 @@ class PeriodClause:
         if 'in' in self.period_clause:
             return self._check_in(report)
         elif 'or' in self.period_clause or 'and' in self.period_clause:
-            return self._check_logic(report)
+            return self._check_complex(report)
         else:
             return self._check_simple(report)
 
@@ -40,8 +40,8 @@ class PeriodClause:
             report.period_code, clause_parts.group(1))
         return eval(clause)
 
-    def _check_logic(self, report):
-        clause_parts = self._eval_regex(lg_pattern, self.period_clause)
+    def _check_complex(self, report):
+        clause_parts = self._eval_regex(cp_pattern, self.period_clause)
 
         l_op = '==' if clause_parts.group(1) == '=' else l_op
         r_op = '==' if clause_parts.group(4) == '=' else r_op
