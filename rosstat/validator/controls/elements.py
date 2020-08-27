@@ -73,6 +73,9 @@ class Elem:
         return self._controls
 
     def control_fail(self, l_elem, op_name):
+        '''Добавление значений которые не прошли контроль и установка флага
+           указывающего на провал проверки
+        '''
         self.bool = False
         self._controls.append({
             'left': l_elem.val,
@@ -117,24 +120,24 @@ class ElemList:
         self.funcs = []
         self.elems = []
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return '<ElemList [{}]{}{} funcs={} elems={}>'.format(
             self.section,
             sorted(int(i) for i in self.rows if i.isdigit()),
             sorted(int(i) for i in self.entries if i.isdigit()),
             self.funcs, self.elems)
 
-    def __neg__(self) -> None:
+    def __neg__(self):
         self._apply_unary('neg')
         return self
 
-    def check(self, report, ctx_elem, precision) -> list:
+    def check(self, report, ctx_elem, precision):
         self._read_data(report)
         self._apply_funcs(report, ctx_elem, precision)
         return self._flatten_elems()
 
-    def _read_data(self, report) -> None:
-        '''Заполнение массива элементами удовлетворяющими условиям специфик'''
+    def _read_data(self, report):
+        '''Чтение отчёта и конвертация его в массивы элементов'''
         raw_sec = report.get_section(self.section)
         for row_code in self.rows:
             raw_rows = list(raw_sec.get_rows(row_code, self.specs))
@@ -145,6 +148,7 @@ class ElemList:
                 self._read_entries(row_code, raw_row=raw_row)
 
     def _read_entries(self, row_code, raw_row=None):
+        '''Чтение графов отдельно взятой строки строки и создание элементов'''
         row = []
         for entry_code in self.entries:
             entry, stub = self._read_enrty_val(entry_code, raw_row)
@@ -157,6 +161,9 @@ class ElemList:
             self.elems.append(row)
 
     def _read_enrty_val(self, entry_code, raw_row):
+        '''Получение значения графы из строки. Если нет всей строки или
+           значения, возвращаем нулевое значение и признак "заглушки"
+        '''
         if raw_row is None:
             return 0, True
         entry = raw_row.get_entry(entry_code)
@@ -260,7 +267,7 @@ class ElemLogic(ElemList):
         ctrl_attr = 'bool' if self.op_name in ('and', 'or') else 'val'
         self.__control(elems_pairs, attr=ctrl_attr)
 
-    def __control(self, elems_pairs, attr) -> None:
+    def __control(self, elems_pairs, attr):
         '''Проверка пары на выполнение условий логического оператора'''
         for l_elem, r_elem in elems_pairs:
             if not self.__can_logic_control(l_elem, r_elem):
@@ -275,6 +282,9 @@ class ElemLogic(ElemList):
             self.elems.append(r_elem)
 
     def __can_logic_control(self, l_elem, r_elem):
+        '''Логический контроль не проводится между "заглушками"
+           или "заглушкой" и скаляром
+        '''
         if l_elem.stub and r_elem.stub:
             return False
         elif l_elem.stub and r_elem.scalar:

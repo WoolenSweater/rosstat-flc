@@ -1,6 +1,6 @@
 import traceback
-from .checkers import CellChecker, ControlChecker
-from .exceptions import ValidationError, InvalidValue
+from .exceptions import FormatError
+from .checkers import FormatChecker, ControlChecker
 
 
 class Schema:
@@ -12,23 +12,29 @@ class Schema:
         self.idp = self._get_idp()
         self.title = self._prepare_title()
         self.dics = self._prepare_dics()
-        self.form = self._prepare_form()
+        self.format = self._prepare_format()
         self.controls = self._prepare_controls()
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return ('<Schema title={title}\nform={form}\ncontrols={controls}\n'
                 'dics={dics}>').format(**self.__dict__)
 
-    def _append_error(self, error_msg):
-        self._errors.append(error_msg)
+    def _add_error(self, error):
+        '''Добавление ошибки в список'''
+        self._errors.append(error)
 
     def _get_idp(self):
+        '''Получение idp из корня шаблона'''
         return str(int(self.xml.getroot().attrib['idp']))
 
-    def _prepare_title(self) -> set:
+    def _prepare_title(self):
+        '''Получения множества полей тайтла из шаблона'''
         return set(f for f in self.xml.xpath('/metaForm/title/item/@field'))
 
-    def _prepare_form(self) -> dict:
+    def _prepare_format(self):
+        '''Создание словаря с чекерами полей отчета. Заполнения списка
+           обязательных полей отчёта их координатами
+        '''
         form = {}
         for section in self.xml.xpath('/metaForm/sections/section'):
             section_code = section.attrib['code']
@@ -42,9 +48,9 @@ class Schema:
                 for cell in row.xpath('./cell'):
                     cell_code = cell.attrib['column']
                     input_type = cell.attrib['inputType']
-                    cell_checker = CellChecker(
+                    format_checker = FormatChecker(
                         cell, self.dics, input_type, row_type=row_type)
-                    form[section_code][row_code][cell_code] = cell_checker
+                    form[section_code][row_code][cell_code] = format_checker
 
                     if input_type == '1' and row_type != 'M':
                         coords = (section_code, row_code, cell_code)
@@ -53,21 +59,24 @@ class Schema:
             form[section_code]['default'] = self._get_defaults(section)
         return form
 
-    def _get_defaults(self, section) -> dict:
+    def _get_defaults(self, section):
+        '''Создание словаря с чекерами "по умолчанию"'''
         defaults = {}
         for cell in section.xpath('./columns/column[@type!="B"]/default-cell'):
             cell_code = cell.attrib['column']
             input_type = cell.attrib['inputType']
-            defaults[cell_code] = CellChecker(cell, self.dics, input_type)
+            defaults[cell_code] = FormatChecker(cell, self.dics, input_type)
         return defaults
 
-    def _prepare_controls(self) -> list:
+    def _prepare_controls(self):
+        '''Создание списка с контролями'''
         controls = []
         for control in self.xml.xpath('/metaForm/controls/control'):
             controls.append(ControlChecker(control))
         return controls
 
-    def _prepare_dics(self) -> dict:
+    def _prepare_dics(self):
+        '''Чтение справочников'''
         dics = {}
         for dic in self.xml.xpath('/metaForm/dics/dic'):
             dict_id = dic.attrib['id']
@@ -78,91 +87,93 @@ class Schema:
                 dics[dict_id][term_id] = term.text
         return dics
 
-    def validate(self, report) -> list:
+    def validate(self, report):
+        '''Основной метод для вызова валидации отчёта'''
         try:
-            check_list = ('period', 'title', 'required', 'form', 'controls')
-            self._check(check_list, report)
-        except ValidationError as ex:
-            self._append_error(ex)
-            print('Validation Error', traceback.format_exc())
-        except Exception as ex:
-            self._append_error('Непредвиденная ошибка')
+            self._check(report)
+        except Exception:
+            self._add_error('Непредвиденная ошибка валидации')
             print('Unexpected Error', traceback.format_exc())
         finally:
             return self._errors
 
-    def _check(self, check_list, report) -> None:
-        for name in check_list:
+    def _check(self, report):
+        '''Вспомогательный метод для итерации по методам проверок'''
+        for name in ('period', 'title', 'required', 'format', 'controls'):
             getattr(self, f'_check_{name}')(report)
             if self._errors:
                 break
 
     def _check_period(self, report):
+        '''Проверка соответствия периода шаблона и периода в отчёте'''
         if self.idp != report.period_type:
-            self._append_error('Тип периодичности отчёта не соответствует '
-                               'типу периодичности шаблона')
+            self._add_error('Тип периодичности отчёта не соответствует '
+                            'типу периодичности шаблона')
 
-    def _check_title(self, report) -> None:
+    def _check_title(self, report):
+        '''Проверка полей тайтла'''
         fields = list(report.title.keys())
         for field in self.title:
-            check = fields.count(field)
+            num_of_fields = fields.count(field)
 
-            if check < 1:
-                message = f'Отсутствует поле "{field}" в блоке title'
-                self._append_error(message)
-            elif check > 1:
-                message = f'Поле "{field}" в блоке title указано более 1 раза'
-                self._append_error(message)
+            if num_of_fields < 1:
+                self._add_error(f'Отсутствует поле "{field}" в блоке title')
+            elif num_of_fields > 1:
+                self._add_error(f'Поле "{field}" в блоке title '
+                                 f'указано более 1 раза')
 
         diff = set(fields) - self.title
         if diff:
-            diffs = ','.join(list(diff))
-            self._append_error(f'Лишнее поле(я) "{diffs}" в блоке title')
+            diffs = ', '.join(diff)
+            self._add_error(f'Лишнее поле(я) "{diffs}" в блоке title')
 
-    def _check_required(self, report) -> None:
+    def _check_required(self, report):
+        '''Проверка заполнения обязательных полей отчёта'''
         template = 'Раздел {}, строка {}, графа {} обязательна для заполнения'
         for s_idx, r_idx, c_idx in self._required:
             rows = list(report.get_section(s_idx).get_rows(r_idx))
             if not rows:
-                self._append_error(template.format(s_idx, r_idx, c_idx))
+                self._add_error(template.format(s_idx, r_idx, c_idx))
             for row in rows:
                 if not row.get_entry(c_idx):
-                    self._append_error(template.format(s_idx, r_idx, c_idx))
+                    self._add_error(template.format(s_idx, r_idx, c_idx))
 
-    def _check_form(self, report) -> None:
-        template = 'Раздел {}, строка {}, графа {}. {}'
+    def _check_format(self, report):
+        '''Проверка формата заполненых полей. Итерация по секциям и строкам'''
         for s_idx, section in report.items():
             for r_idx, rows in section.items():
                 for row in rows:
-                    for c_idx, cell in row.items():
-                        if not cell:
-                            continue
-                        try:
-                            self.__check_cell(cell, s_idx, r_idx, c_idx)
-                        except InvalidValue as ex:
-                            err_msg = template.format(s_idx, r_idx, c_idx, ex)
-                            self._append_error(err_msg)
-                        except Exception:
-                            ex = ('Непредвиденная ошибка проверки '
-                                  'формата ячейки')
-                            err_msg = template.format(s_idx, r_idx, c_idx, ex)
-                            self._append_error(err_msg)
+                    self.__check_cells(row, s_idx, r_idx)
 
-    def __check_cell(self, cell, s_idx, r_idx, c_idx):
-        cell_checker = self.__get_cell_checker(s_idx, r_idx, c_idx)
-        cell_checker.check(cell)
+    def __check_cells(self, row, s_idx, r_idx):
+        '''Итерация по полям строки с их последующей проверкой'''
+        template = 'Раздел {}, строка {}, графа {}. {}'
+        for c_idx, cell in row.items():
+            if not cell:
+                continue
+            try:
+                format_checker = self.__get_format_checker(s_idx, r_idx, c_idx)
+                format_checker.check(cell, self._errors)
+            except FormatError as ex:
+                self._add_error(template.format(s_idx, r_idx, c_idx, ex.msg))
+            except Exception:
+                ex_msg = 'Непредвиденная ошибка проверки формата ячейки'
+                self._add_error(template.format(s_idx, r_idx, c_idx, ex.msg))
+                print('Unexpected Error', traceback.format_exc())
 
-    def __get_cell_checker(self, s_idx, r_idx, c_idx) -> CellChecker:
+    def __get_format_checker(self, s_idx, r_idx, c_idx):
+        '''Получение чекера для поля'''
         try:
-            return self.form[s_idx][r_idx][c_idx]
+            return self.format[s_idx][r_idx][c_idx]
         except KeyError:
-            return self.form[s_idx]['default'][c_idx]
+            return self.format[s_idx]['default'][c_idx]
 
     def _check_controls(self, report):
+        '''Проверка отчёта по контролям'''
         for control in self.controls:
             try:
                 control.check(report, self._errors)
-            except ValidationError:
-                raise
-            except Exception as ex:
-                raise ValidationError(f'Ошибка при проверке {control.id}')
+            except Exception:
+                self._add_error(f'Непредвиденная ошибка проверки '
+                                f'контроля {control.id}')
+                print('Unexpected Error', traceback.format_exc())
