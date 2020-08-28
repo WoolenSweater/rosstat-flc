@@ -14,7 +14,7 @@ class ControlChecker:
         self.condition = control.attrib['condition']
 
         self.tip = control.attrib.get('tip', '1')
-        self.fault = control.attrib.get('fault', '0')
+        self.fault = float(control.attrib.get('fault', '0'))
         self.precision = int(control.attrib.get('precision', '2'))
 
         self.period = PeriodClause(control, self.id)
@@ -40,24 +40,27 @@ class ControlChecker:
 
     def _fmt_errors(self, errors):
         '''Форматирование сообщения о непройденном контроле'''
-        template = '{} {}; слева {} {} справа {} разница {}'
+        template = '{} {}; слева {} {} справа {} разница {}; обязательность {}'
         for err in errors:
             yield template.format(self.id,
                                   self.name,
                                   err['left'],
                                   err['operator'],
                                   err['right'],
-                                  err['delta'])
+                                  err['delta'],
+                                  'да' if self.tip == '1' else 'нет')
 
     def _check_period(self, report):
         '''Проверка соответствия периода контроля периоду в отчёте'''
         if not self.period.check(report):
             raise PeriodCheckFail()
 
-    def __check_control(self, evaluator, report):
+    def __check_control(self, evaluator, report, rule=False):
         '''Выполнение проверки. Возвращает список проваленых проверок'''
         flatten = []
-        for result in evaluator.check(report, precision=self.precision):
+        for result in evaluator.check(report,
+                                      fault=self.fault if rule else -1,
+                                      precision=self.precision):
             flatten.extend(result.controls)
         return flatten
 
@@ -79,6 +82,6 @@ class ControlChecker:
             if rule is None:
                 raise RuleExprError(self.id)
 
-            fail_checks = self.__check_control(rule, report)
+            fail_checks = self.__check_control(rule, report, rule=True)
             if fail_checks:
                 raise RuleCheckFail(fail_checks)

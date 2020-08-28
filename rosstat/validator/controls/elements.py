@@ -131,9 +131,9 @@ class ElemList:
         self._apply_unary('neg')
         return self
 
-    def check(self, report, ctx_elem, precision):
+    def check(self, report, ctx_elem, fault, precision):
         self._read_data(report)
-        self._apply_funcs(report, ctx_elem, precision)
+        self._apply_funcs(report, ctx_elem, fault, precision)
         return self._flatten_elems()
 
     def _read_data(self, report):
@@ -169,7 +169,7 @@ class ElemList:
         entry = raw_row.get_entry(entry_code)
         return (entry, False) if entry else (0, True)
 
-    def _apply_funcs(self, report, ctx_elem, precision):
+    def _apply_funcs(self, report, ctx_elem, fault, precision):
         '''Выполнение функций на эелементах массива'''
         for func, args in self.funcs:
             if func == 'sum':
@@ -177,9 +177,9 @@ class ElemList:
             elif func in ('abs', 'floor'):
                 self._apply_unary(func)
             elif func in ('round', 'isnull'):
-                self._apply_binary(report, func, precision, args)
+                self._apply_binary(report, func, fault, precision, args)
             else:
-                self._apply_math(report, func, precision, *args)
+                self._apply_math(report, func, fault, precision, *args)
 
     def _apply_sum(self, ctx_elem):
         '''Суммирование строк и/или графов'''
@@ -197,17 +197,19 @@ class ElemList:
             for elem in row:
                 getattr(elem, func)()
 
-    def _apply_binary(self, report, func, precision, args):
+    def _apply_binary(self, report, func, fault, precision, elems):
         '''Выполнение бинарных операций (round, isnull)'''
-        args = [int(e.check(report, self, precision)[0].val) for e in args]
+        args = []
+        for elem in elems:
+            args.append(int(elem.check(report, self, fault, precision)[0].val))
         for row in self.elems:
             for elem in row:
                 getattr(elem, func)(*args)
 
-    def _apply_math(self, report, func, precision, elem):
+    def _apply_math(self, report, func, fault, precision, elem):
         '''Выполнение математических операций (add, sub, mul, truediv)'''
         left_operand = self._flatten_elems()
-        right_operand = elem.check(report, self, precision)
+        right_operand = elem.check(report, self, fault, precision)
 
         operand_pairs = self._zip(left_operand, right_operand)
         self.elems.clear()
@@ -245,6 +247,7 @@ class ElemLogic(ElemList):
         self.op_name = operator.lower()
         self.op_func = operator_map[self.op_name]
 
+        self.fault = -1
         self.precision = 2
         self.elems = []
 
@@ -252,16 +255,34 @@ class ElemLogic(ElemList):
         return '<ElemLogic left={} operator="{}" right={}>'.format(
             self.l_elem, self.op_name, self.r_elem)
 
-    def check(self, report, ctx_elem=None, precision=2):
+    def check(self, report, ctx_elem=None, fault=-1, precision=2):
+        '''Основной метод для вызова проверки элемента.
+           Все элементы принимают одинаковый набор аргументов, для поддержания
+           единого интерфейса взамодействия, но могут не использовать какие-то
+           из них.
+           ctx_elem - контекстный элемент. Для логического элемента равен None,
+               так как он и так уже содержит в себе левый и правый элементы
+               логического условия, которые приходятся друг другу контекстом.
+           fault - погрешность. Если логическое условие не выполнено,
+               дополнительно проверяется погрешность. Отрицательное значение
+               для проверки "condition", так как там отклонение не допустимо.
+           precision - округление. Используется логическим элементом для
+               округления перед проверкой условия.
+        '''
+        self.fault = fault
         self.precision = precision
         self._control(report)
         return self.elems
 
+    def _check_elem(self, report, elem, ctx_elem):
+        '''Вызов метода проверки у элемента'''
+        return elem.check(report, ctx_elem, self.fault, self.precision)
+
     def _control(self, report):
         '''Подготовка элементов, слияние. Определение аттрибута контроля.
            Вызов метода проверки выполнения логического условия'''
-        l_elems = self.l_elem.check(report, self.r_elem, self.precision)
-        r_elems = self.r_elem.check(report, self.l_elem, self.precision)
+        l_elems = self._check_elem(report, self.l_elem, self.r_elem)
+        r_elems = self._check_elem(report, self.r_elem, self.l_elem)
         elems_pairs = self._zip(l_elems, r_elems)
 
         ctrl_attr = 'bool' if self.op_name in ('and', 'or') else 'val'
@@ -276,7 +297,8 @@ class ElemLogic(ElemList):
 
             l_elem_v, r_elem_v = self.__get_elem_values(l_elem, r_elem, attr)
             if not self.op_func(l_elem_v, r_elem_v):
-                r_elem.control_fail(l_elem, self.op_name)
+                if not self.__check_fault(l_elem.val, r_elem.val):
+                    r_elem.control_fail(l_elem, self.op_name)
 
             r_elem.controls.extend(l_elem.controls)
             self.elems.append(r_elem)
@@ -299,6 +321,10 @@ class ElemLogic(ElemList):
         r_elem.round(self.precision)
         return getattr(l_elem, attr), getattr(r_elem, attr)
 
+    def __check_fault(self, l_elem_v, r_elem_v):
+        '''Проверка погрешности'''
+        return abs(l_elem_v - r_elem_v) <= self.fault
+
 
 class ElemSelector(ElemList):
     def __init__(self, action, elems):
@@ -310,17 +336,18 @@ class ElemSelector(ElemList):
         return '<ElemSelector action={} funcs={} elems={}>'.format(
             self.action, self.funcs, self.elems)
 
-    def check(self, report, ctx_elem, precision):
-        self._select(report, ctx_elem, precision)
+    def check(self, report, ctx_elem, fault, precision):
+        self._select(report, ctx_elem, fault, precision)
         self._apply_funcs(report, ctx_elem)
         return self._flatten_elems()
 
-    def _select(self, report, ctx_elem, precision):
+    def _select(self, report, ctx_elem, fault, precision):
         '''Подготовка элементов, слияние. Очистка списка элементов.
            Вызов метода селектора по полю action'''
         elems_results = []
         for elem in self.elems:
-            elems_results.append(elem.check(report, ctx_elem, precision))
+            elems_results.append(
+                elem.check(report, ctx_elem, fault, precision))
         elems_results = self._zip(*elems_results)
 
         self.elems.clear()
