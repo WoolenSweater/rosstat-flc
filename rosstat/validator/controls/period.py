@@ -38,7 +38,7 @@ class PeriodClause:
         '''Проверка на вхождение в список'''
         clause_parts = self._eval_regex(in_pattern, self.period_clause)
 
-        clause = '{0} in ({1})'.format(
+        clause = '{0} in ({1},)'.format(
             report.period_code, clause_parts.group(1))
         return eval(clause)
 

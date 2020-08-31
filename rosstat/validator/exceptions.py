@@ -64,3 +64,9 @@ class RuleExprError(ControlError):
 class PeriodExprError(ControlError):
     def __init__(self, _id):
         self.msg = f'Ошибка разбора формулы проверки периодичности {_id}'
+
+
+class PrevPeriodNotImpl(ControlError):
+    def __init__(self, _id):
+        self.msg = (f'Проверка со значениями из прошлого периода '
+                    f'не реализована {_id}')

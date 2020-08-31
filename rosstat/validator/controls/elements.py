@@ -338,7 +338,7 @@ class ElemSelector(ElemList):
 
     def check(self, report, ctx_elem, fault, precision):
         self._select(report, ctx_elem, fault, precision)
-        self._apply_funcs(report, ctx_elem)
+        self._apply_funcs(report, ctx_elem, fault, precision)
         return self._flatten_elems()
 
     def _select(self, report, ctx_elem, fault, precision):

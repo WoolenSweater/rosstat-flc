@@ -1,7 +1,7 @@
 from ..controls.period import PeriodClause
 from ..controls import parser as control_parser
 from ..exceptions import (PeriodCheckFail, ConditionExprError, RuleExprError,
-                          ConditionCheckFail, RuleCheckFail)
+                          ConditionCheckFail, RuleCheckFail, PrevPeriodNotImpl)
 
 
 class ControlChecker:
@@ -35,7 +35,7 @@ class ControlChecker:
             pass
         except RuleCheckFail as ex:
             errors_list.extend(self._fmt_errors(ex.msg))
-        except (ConditionExprError, RuleExprError) as ex:
+        except (ConditionExprError, RuleExprError, PrevPeriodNotImpl) as ex:
             errors_list.append(ex.msg)
 
     def _fmt_errors(self, errors):
@@ -66,7 +66,7 @@ class ControlChecker:
 
     def _check_condition(self, report):
         '''Проверка условия для выполнения контроля'''
-        if self.condition:
+        if self.condition and not self._is_previous_period(self.condition):
             condition = control_parser.parse(self.condition)
             if condition is None:
                 raise ConditionExprError(self.id)
@@ -77,7 +77,7 @@ class ControlChecker:
 
     def _check_rule(self, report):
         '''Проверка правила контроля'''
-        if self.rule:
+        if self.rule and not self._is_previous_period(self.rule):
             rule = control_parser.parse(self.rule)
             if rule is None:
                 raise RuleExprError(self.id)
@@ -85,3 +85,11 @@ class ControlChecker:
             fail_checks = self.__check_control(rule, report, rule=True)
             if fail_checks:
                 raise RuleCheckFail(fail_checks)
+
+    def _is_previous_period(self, formula):
+        '''Проверка наличия в формуле элемента в двух фигурных скобках,
+           что говорит о том, что значение берётся за прошлый период.
+           Такой функционал пока неизвестно когда получится реализовать
+        '''
+        if '{{' in formula:
+            raise PrevPeriodNotImpl(self.id)

@@ -117,7 +117,7 @@ class Report:
         return (row.attrib.get(f's{i}') for i in range(1, 4))
 
     def _get_periods(self, xml):
-        period = xml.getroot().attrib['period']
+        period = xml.xpath('/report/@period')[0]
         if len(period) != 4:
             self._period_code = str(int(period))
         else:
