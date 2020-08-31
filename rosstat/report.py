@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from dataclasses import dataclass, field, InitVar
 from lxml.etree import _ElementTree
 
@@ -28,6 +28,8 @@ class Section:
     rows: List[Row] = field(default_factory=list)
     row_codes: List[str] = field(default_factory=list)
 
+    _ignore_specs: Tuple[set] = ({None}, {'*'}, {'0'})
+
     def items(self):
         for row_code in set(self.row_codes):
             yield row_code, list(self.get_rows(row_code))
@@ -42,7 +44,7 @@ class Section:
             return True
         for i in range(1, 4):
             row_spec = getattr(row, f's{i}')
-            if specs[i] not in ({None}, {'*'}) and row_spec not in specs[i]:
+            if specs[i] not in self._ignore_specs and row_spec not in specs[i]:
                 return False
         return True
 
@@ -90,7 +92,7 @@ class Report:
     def _read_title(self, xml):
         title = {}
         for item in xml.xpath('/report/title/item'):
-            title[item.attrib['name']] = item.attrib['value']
+            title[item.attrib['name']] = item.attrib.get('value', '').strip()
         return title
 
     def _read_data(self, xml):

@@ -10,8 +10,8 @@ class ControlChecker:
 
         self.id = control.attrib['id']
         self.name = control.attrib['name']
-        self.rule = control.attrib['rule']
-        self.condition = control.attrib['condition']
+        self.rule = control.attrib['rule'].strip()
+        self.condition = control.attrib['condition'].strip()
 
         self.tip = control.attrib.get('tip', '1')
         self.fault = float(control.attrib.get('fault', '0'))

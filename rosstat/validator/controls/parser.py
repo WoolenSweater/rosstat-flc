@@ -7,7 +7,7 @@ precedence = (
     ('left', 'COMP'),
     ('left', 'PLUS', 'MINUS'),
     ('left', 'MULTIPLY', 'DIVIDE'),
-    ('left', 'SUM'),
+    ('left', 'SUM', 'ABS'),
     ('right', 'UMINUS'),            # Unary minus operator
 )
 
