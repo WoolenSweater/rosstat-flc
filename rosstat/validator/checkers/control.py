@@ -14,7 +14,7 @@ class ControlChecker:
         self.condition = control.attrib['condition'].strip()
 
         self.tip = control.attrib.get('tip', '1')
-        self.fault = float(control.attrib.get('fault', '0'))
+        self.fault = float(control.attrib.get('fault', '-1'))
         self.precision = int(control.attrib.get('precision', '2'))
 
         self.period = PeriodClause(control, self.id)

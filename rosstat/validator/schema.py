@@ -10,10 +10,14 @@ class Schema:
         self._errors = []
 
         self.idp = self._get_idp()
+        self.obj = self._get_obj()
         self.title = self._prepare_title()
         self.dics = self._prepare_dics()
         self.format = self._prepare_format()
         self.controls = self._prepare_controls()
+
+        self._check_list = ('period', 'title', 'required', 'duplicates',
+                            'format', 'controls')
 
     def __repr__(self):
         return ('<Schema title={title}\nform={form}\ncontrols={controls}\n'
@@ -25,7 +29,11 @@ class Schema:
 
     def _get_idp(self):
         '''Получение idp из корня шаблона'''
-        return str(int(self.xml.getroot().attrib['idp']))
+        return str(int(self.xml.xpath('/metaForm/@idp')[0]))
+
+    def _get_obj(self):
+        '''Получение obj из корня шаблона'''
+        return self.xml.xpath('/metaForm/@obj')[0]
 
     def _prepare_title(self):
         '''Получения множества полей тайтла из шаблона'''
@@ -99,7 +107,7 @@ class Schema:
 
     def _check(self, report):
         '''Вспомогательный метод для итерации по методам проверок'''
-        for name in ('period', 'title', 'required', 'format', 'controls'):
+        for name in self._check_list:
             getattr(self, f'_check_{name}')(report)
             if self._errors:
                 break
@@ -112,20 +120,26 @@ class Schema:
 
     def _check_title(self, report):
         '''Проверка полей тайтла'''
-        fields = list(report.title.keys())
-        for field in self.title:
-            num_of_fields = fields.count(field)
+        checked = []
+        for name, value in report.title:
+            if name not in self.title:
+                self._add_error(f'Блок title: лишнее поле "{name}"')
+            if checked.count(name) != 0:
+                self._add_error(f'Блок title: повтор поля "{name}"')
+            if not value:
+                self._add_error(f'Блок title: нет значения в поле "{name}"')
 
-            if num_of_fields < 1:
-                self._add_error(f'Отсутствует поле "{field}" в блоке title')
-            elif num_of_fields > 1:
-                self._add_error(f'Поле "{field}" в блоке title '
-                                 f'указано более 1 раза')
+            checked.append(name)
 
-        diff = set(fields) - self.title
+        if self.obj not in checked:
+            self._add_error(f'Блок title: отсутствует обязательное '
+                            f'поле "{self.obj}"')
+            self.title.discard(self.obj)
+
+        diff = self.title - set(checked)
         if diff:
             diffs = ', '.join(diff)
-            self._add_error(f'Лишнее поле(я) "{diffs}" в блоке title')
+            self._add_error(f'Блок title: отсутствуют поле(я) "{diffs}"')
 
     def _check_required(self, report):
         '''Проверка заполнения обязательных полей отчёта'''
@@ -137,6 +151,13 @@ class Schema:
             for row in rows:
                 if not row.get_entry(c_idx):
                     self._add_error(template.format(s_idx, r_idx, c_idx))
+
+    def _check_duplicates(self, report):
+        '''Проверка дублирующихся строк в отчёте'''
+        for row, counter in report.row_counters.items():
+            if counter > 1:
+                self._add_error(f'Строка "{row[0]}" повторяется '
+                                f'{counter} раз(а)')
 
     def _check_format(self, report):
         '''Проверка формата заполненых полей. Итерация по секциям и строкам'''

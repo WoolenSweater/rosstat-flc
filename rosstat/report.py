@@ -1,4 +1,5 @@
 from typing import List, Dict, Tuple
+from collections import defaultdict as defdict
 from dataclasses import dataclass, field, InitVar
 from lxml.etree import _ElementTree
 
@@ -60,6 +61,7 @@ class Report:
     _data: Dict[str, Section] = None
     _period_type: str = '1'
     _period_code: str = '1'
+    _row_counters: defdict = field(default_factory=lambda: defdict(int))
 
     def __repr__(self):
         return '<Report title={_title}\ndata={_data}>'.format(**self.__dict__)
@@ -82,6 +84,10 @@ class Report:
     def period_code(self):
         return self._period_code
 
+    @property
+    def row_counters(self):
+        return self._row_counters
+
     def items(self):
         for k, v in self._data.items():
             yield k, v
@@ -90,9 +96,10 @@ class Report:
         return self._data.get(section_code)
 
     def _read_title(self, xml):
-        title = {}
-        for item in xml.xpath('/report/title/item'):
-            title[item.attrib['name']] = item.attrib.get('value', '').strip()
+        title = []
+        for node in xml.xpath('/report/title/item'):
+            item = (node.attrib['name'], node.attrib.get('value', '').strip())
+            title.append(item)
         return title
 
     def _read_data(self, xml):
@@ -110,6 +117,7 @@ class Report:
 
                     row.add_col(col_code, col.text)
                 section.add_row(row_code, row)
+                self._row_counters[(row_code, row.s1, row.s2, row.s3)] += 1
             data[section_code] = section
         return data
 
