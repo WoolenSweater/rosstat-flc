@@ -1,10 +1,8 @@
 import re
 from ..exceptions import PeriodExprError
 
-in_pattern = re.compile(r'^\(&NP\s?in\s?\(([\d, ]+)\)\)$', re.I)
-sp_pattern = re.compile(r'^\(&NP\s?([><=]+)\s?(\d+)\)$', re.I)
-cp_pattern = re.compile(r'^\(&NP\s?([><=]+)\s?(\d+)\s?(and|or)\s?'
-                        r'&NP\s?([><=]+)\s?(\d+)\)$', re.I)
+in_pattern = re.compile(r'^\(&npin\(([\d,]+)\)\)$')
+cp_pattern = re.compile(r'^&np([=<>]+)(\d+)$')
 
 
 class PeriodClause:
@@ -15,17 +13,22 @@ class PeriodClause:
     def __repr__(self):
         return '<PeriodClause clause={period_clause}>'.format(**self.__dict__)
 
+    def _normolize_period_clause(self) -> None:
+        self.period_clause = self.period_clause.replace(' ', '').lower()
+        self.period_clause = self.period_clause.replace('and', ' and ')
+        self.period_clause = self.period_clause.replace('or', ' or ')
+
     def check(self, report):
         '''Метод вызова проверки периода контроля'''
         if not self.period_clause:
             return True
 
+        self._normolize_period_clause()
+
         if 'in' in self.period_clause:
             return self._check_in(report)
-        elif 'or' in self.period_clause or 'and' in self.period_clause:
-            return self._check_complex(report)
         else:
-            return self._check_simple(report)
+            return self._check_logic(report)
 
     def _eval_regex(self, pattern, string):
         '''Разбор формулы проверки периода с помощью регулярки'''
@@ -38,27 +41,21 @@ class PeriodClause:
         '''Проверка на вхождение в список'''
         clause_parts = self._eval_regex(in_pattern, self.period_clause)
 
-        clause = '{0} in ({1},)'.format(
-            report.period_code, clause_parts.group(1))
+        clause = '{0} in ({1},)'.format(report.period_code,
+                                        clause_parts.group(1))
         return eval(clause)
 
-    def _check_complex(self, report):
-        '''Проверка сложного логического условия'''
-        clause_parts = self._eval_regex(cp_pattern, self.period_clause)
+    def _check_logic(self, report):
+        '''Проверка комплексного логического условия'''
+        clause_parts = []
+        for cluase_part in self.period_clause.strip('()').split():
+            if cluase_part in ('or', 'and'):
+                clause_parts.append(cluase_part)
+                continue
 
-        l_op = '==' if clause_parts.group(1) == '=' else clause_parts.group(1)
-        r_op = '==' if clause_parts.group(4) == '=' else clause_parts.group(4)
+            op, num = self._eval_regex(cp_pattern, cluase_part).group(1, 2)
+            op = '==' if op == '=' else op
+            clause_parts.append(f'{report.period_code} {op} {num}')
 
-        clause = '{0} {1} {3} {4} {0} {2} {5}'.format(
-            report.period_code, l_op, r_op, *clause_parts.group(2, 3, 5))
-        return eval(clause)
-
-    def _check_simple(self, report):
-        '''Проверка простого логического условия'''
-        clause_parts = self._eval_regex(sp_pattern, self.period_clause)
-
-        op = '==' if clause_parts.group(1) == '=' else clause_parts.group(1)
-
-        clause = '{0} {1} {2}'.format(
-            report.period_code, op, clause_parts.group(2))
+        clause = ' '.join(clause_parts)
         return eval(clause)

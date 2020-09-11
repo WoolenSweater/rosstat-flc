@@ -20,7 +20,7 @@ pip install rosstat-flc
 from rosstat.flc import parse_schema, parse_report
 
 schema = parse_schema('xml_schema.xml')
-report = parse_report('xml_report.xml')
+report = parse_report('xml_report.xml', skip_warns=True)
 
 for result in schema.validate(report):
     print(result)

@@ -53,20 +53,20 @@ class RuleCheckFail(ControlError):
 
 class ConditionExprError(ControlError):
     def __init__(self, _id):
-        self.msg = f'Ошибка разбора условия контроля {_id}'
+        self.msg = f'{_id} Ошибка разбора условия контроля'
 
 
 class RuleExprError(ControlError):
     def __init__(self, _id):
-        self.msg = f'Ошибка разбора правила контроля {_id}'
+        self.msg = f'{_id} Ошибка разбора правила контроля'
 
 
 class PeriodExprError(ControlError):
     def __init__(self, _id):
-        self.msg = f'Ошибка разбора формулы проверки периодичности {_id}'
+        self.msg = f'{_id} Ошибка разбора формулы проверки периодичности'
 
 
 class PrevPeriodNotImpl(ControlError):
     def __init__(self, _id):
-        self.msg = (f'Проверка со значениями из прошлого периода '
-                    f'не реализована {_id}')
+        self.msg = (f'{_id} Проверка со значениями из прошлого периода '
+                    f'не реализована')

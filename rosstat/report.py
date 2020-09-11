@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from collections import defaultdict as defdict
 from dataclasses import dataclass, field, InitVar
 from lxml.etree import _ElementTree
@@ -12,12 +12,13 @@ class Row:
     s3: str
     cols: Dict[str, str] = field(default_factory=dict)
 
-    def items(self):
-        for k, v in self.cols.items():
-            yield k, v
+    def items(self, codes=None):
+        codes = codes or self.cols.keys()
+        for entry_code in codes:
+            yield entry_code, self.get_entry(entry_code)
 
-    def get_entry(self, _entry_code):
-        return self.cols.get(_entry_code)
+    def get_entry(self, code):
+        return self.cols.get(code)
 
     def add_col(self, col_code, col_text):
         self.cols[col_code] = col_text
@@ -31,13 +32,14 @@ class Section:
 
     _ignore_specs: Tuple[set] = ({None}, {'*'}, {'0'})
 
-    def items(self):
-        for row_code in set(self.row_codes):
-            yield row_code, list(self.get_rows(row_code))
+    def items(self, codes=None, specs=None):
+        codes = codes or set(self.row_codes)
+        for row_code in codes:
+            yield row_code, list(self.get_rows(row_code, specs=specs))
 
-    def get_rows(self, _row_code, specs=None):
+    def get_rows(self, code, specs=None):
         for row_code, row in zip(self.row_codes, self.rows):
-            if row_code == _row_code and self._check_specs(row, specs):
+            if row_code == code and self._check_specs(row, specs):
                 yield row
 
     def _check_specs(self, row, specs):
@@ -59,8 +61,8 @@ class Report:
     xml: InitVar[_ElementTree]
     _title: Dict[str, str] = None
     _data: Dict[str, Section] = None
-    _period_type: str = '1'
-    _period_code: str = '1'
+    _period_type: Optional[str] = None
+    _period_code: str = None
     _row_counters: defdict = field(default_factory=lambda: defdict(int))
 
     def __repr__(self):

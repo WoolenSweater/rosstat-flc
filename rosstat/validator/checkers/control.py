@@ -1,3 +1,5 @@
+from typing import Dict
+from dataclasses import dataclass
 from ..controls.period import PeriodClause
 from ..controls import parser as control_parser
 from ..exceptions import (PeriodCheckFail, ConditionExprError, RuleExprError,
@@ -5,8 +7,10 @@ from ..exceptions import (PeriodCheckFail, ConditionExprError, RuleExprError,
 
 
 class ControlChecker:
-    def __init__(self, control):
+    def __init__(self, control, *, dimension, skip_warns):
         self._control = control
+        self._dimension = dimension
+        self._skip_warns = skip_warns
 
         self.id = control.attrib['id']
         self.name = control.attrib['name']
@@ -35,8 +39,11 @@ class ControlChecker:
             pass
         except RuleCheckFail as ex:
             errors_list.extend(self._fmt_errors(ex.msg))
-        except (ConditionExprError, RuleExprError, PrevPeriodNotImpl) as ex:
+        except (ConditionExprError, RuleExprError) as ex:
             errors_list.append(ex.msg)
+        except PrevPeriodNotImpl:
+            if not self._skip_warns:
+                errors_list.append(ex.msg)
 
     def _fmt_errors(self, errors):
         '''Форматирование сообщения о непройденном контроле'''
@@ -55,12 +62,14 @@ class ControlChecker:
         if not self.period.check(report):
             raise PeriodCheckFail()
 
-    def __check_control(self, evaluator, report, rule=False):
+    def __check_control(self, evaluator, report, is_rule=False):
         '''Выполнение проверки. Возвращает список проваленых проверок'''
         flatten = []
-        for result in evaluator.check(report,
-                                      fault=self.fault if rule else -1,
-                                      precision=self.precision):
+        params = ControlParams(self._dimension,
+                               self.precision,
+                               self.fault,
+                               is_rule=is_rule)
+        for result in evaluator.check(report, params):
             flatten.extend(result.controls)
         return flatten
 
@@ -82,7 +91,7 @@ class ControlChecker:
             if rule is None:
                 raise RuleExprError(self.id)
 
-            fail_checks = self.__check_control(rule, report, rule=True)
+            fail_checks = self.__check_control(rule, report, is_rule=True)
             if fail_checks:
                 raise RuleCheckFail(fail_checks)
 
@@ -93,3 +102,14 @@ class ControlChecker:
         '''
         if '{{' in formula:
             raise PrevPeriodNotImpl(self.id)
+
+
+@dataclass
+class ControlParams:
+    dimension: Dict[str, list]
+    precision: int
+    fault: float
+    is_rule: bool = False
+
+    def __post_init__(self):
+        self.fault = -1 if self.is_rule else self.fault

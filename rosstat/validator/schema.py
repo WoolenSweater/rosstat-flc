@@ -1,13 +1,16 @@
 import traceback
+from collections import defaultdict
 from .exceptions import FormatError
 from .checkers import FormatChecker, ControlChecker
 
 
 class Schema:
-    def __init__(self, xml_tree):
+    def __init__(self, xml_tree, *, skip_warns):
         self.xml = xml_tree
         self._required = []
         self._errors = []
+        self._skip_warns = skip_warns
+        self._dimension = defaultdict(list)
 
         self.idp = self._get_idp()
         self.obj = self._get_obj()
@@ -64,23 +67,27 @@ class Schema:
                         coords = (section_code, row_code, cell_code)
                         self._required.append(coords)
 
-            form[section_code]['default'] = self._get_defaults(section)
+            form[section_code]['default'] = self._get_defaults(section,
+                                                               section_code)
         return form
 
-    def _get_defaults(self, section):
+    def _get_defaults(self, section, section_code):
         '''Создание словаря с чекерами "по умолчанию"'''
         defaults = {}
         for cell in section.xpath('./columns/column[@type!="B"]/default-cell'):
             cell_code = cell.attrib['column']
             input_type = cell.attrib['inputType']
             defaults[cell_code] = FormatChecker(cell, self.dics, input_type)
+            self._dimension[section_code].append(cell_code)
         return defaults
 
     def _prepare_controls(self):
         '''Создание списка с контролями'''
         controls = []
         for control in self.xml.xpath('/metaForm/controls/control'):
-            controls.append(ControlChecker(control))
+            controls.append(ControlChecker(control,
+                                           dimension=self._dimension,
+                                           skip_warns=self._skip_warns))
         return controls
 
     def _prepare_dics(self):
@@ -114,7 +121,7 @@ class Schema:
 
     def _check_period(self, report):
         '''Проверка соответствия периода шаблона и периода в отчёте'''
-        if self.idp != report.period_type:
+        if report.period_type is not None and report.period_type != self.idp:
             self._add_error('Тип периодичности отчёта не соответствует '
                             'типу периодичности шаблона')
 

@@ -131,45 +131,58 @@ class ElemList:
         self._apply_unary('neg')
         return self
 
-    def check(self, report, ctx_elem, fault, precision):
-        self._read_data(report)
-        self._apply_funcs(report, ctx_elem, fault, precision)
+    def check(self, report, params, ctx_elem):
+        self._read_data(report, params.dimension)
+        self._apply_funcs(report, params, ctx_elem)
         return self._flatten_elems()
 
-    def _read_data(self, report):
+    def _read_data(self, report, dimension):
         '''Чтение отчёта и конвертация его в массивы элементов'''
         raw_sec = report.get_section(self.section)
-        for row_code in self.rows:
-            raw_rows = list(raw_sec.get_rows(row_code, self.specs))
+        for row_code, raw_rows in self._read_rows(raw_sec):
             if not raw_rows:
-                self._read_entries(row_code, raw_row=None)
+                self.elems.append(self._proc_row_empty(row_code, dimension))
                 continue
             for raw_row in raw_rows:
-                self._read_entries(row_code, raw_row=raw_row)
+                self.elems.append(self._proc_row(raw_row, row_code, dimension))
 
-    def _read_entries(self, row_code, raw_row=None):
-        '''Чтение графов отдельно взятой строки строки и создание элементов'''
+    def _read_rows(self, raw_sec):
+        '''Читаем строки'''
+        if self.rows == {'*'}:
+            return raw_sec.items(specs=self.specs)
+        return raw_sec.items(codes=self.rows, specs=self.specs)
+
+    def _read_entries(self, raw_row, dimension):
+        '''Читаем графы если строка не пустая'''
+        if self.entries == {'*'}:
+            return raw_row.items(codes=dimension[self.section])
+        return raw_row.items(codes=self.entries)
+
+    def _read_entries_empty(self, dimension):
+        '''Читаем графы если строка пустая'''
+        if self.entries == {'*'}:
+            return iter(dimension[self.section])
+        return iter(self.entries)
+
+    def _proc_row(self, raw_row, row_code, dimension):
+        '''Заполняем строку элементами со значениями из отчета, отсутствующие
+           значения замещаем заглушкой'''
         row = []
-        for entry_code in self.entries:
-            entry, stub = self._read_enrty_val(entry_code, raw_row)
-            row.append(Elem(entry,
-                            section=[self.section],
-                            rows=[row_code],
-                            entries=[entry_code],
-                            stub=stub))
-        if row:
-            self.elems.append(row)
+        for entry_code, value in self._read_entries(raw_row, dimension):
+            value, stub = (value, False) if value else (0, True)
+            row.append(
+                Elem(value, self.section, [row_code], [entry_code], stub=stub))
+        return row
 
-    def _read_enrty_val(self, entry_code, raw_row):
-        '''Получение значения графы из строки. Если нет всей строки или
-           значения, возвращаем нулевое значение и признак "заглушки"
-        '''
-        if raw_row is None:
-            return 0, True
-        entry = raw_row.get_entry(entry_code)
-        return (entry, False) if entry else (0, True)
+    def _proc_row_empty(self, row_code, dimension):
+        '''Заполняем строку элементами заглушками'''
+        row = []
+        for entry_code in self._read_entries_empty(dimension):
+            row.append(
+                Elem(0, self.section, [row_code], [entry_code], stub=True))
+        return row
 
-    def _apply_funcs(self, report, ctx_elem, fault, precision):
+    def _apply_funcs(self, report, params, ctx_elem):
         '''Выполнение функций на эелементах массива'''
         for func, args in self.funcs:
             if func == 'sum':
@@ -177,9 +190,9 @@ class ElemList:
             elif func in ('abs', 'floor'):
                 self._apply_unary(func)
             elif func in ('round', 'isnull'):
-                self._apply_binary(report, func, fault, precision, args)
+                self._apply_binary(report, params, func, args)
             else:
-                self._apply_math(report, func, fault, precision, *args)
+                self._apply_math(report, params, func, *args)
 
     def _apply_sum(self, ctx_elem):
         '''Суммирование строк и/или графов'''
@@ -197,19 +210,17 @@ class ElemList:
             for elem in row:
                 getattr(elem, func)()
 
-    def _apply_binary(self, report, func, fault, precision, elems):
+    def _apply_binary(self, report, params, func, elems):
         '''Выполнение бинарных операций (round, isnull)'''
-        args = []
-        for elem in elems:
-            args.append(int(elem.check(report, self, fault, precision)[0].val))
+        args = [int(elem.check(report, params, self)[0].val) for elem in elems]
         for row in self.elems:
             for elem in row:
                 getattr(elem, func)(*args)
 
-    def _apply_math(self, report, func, fault, precision, elem):
+    def _apply_math(self, report, params, func, elem):
         '''Выполнение математических операций (add, sub, mul, truediv)'''
         left_operand = self._flatten_elems()
-        right_operand = elem.check(report, self, fault, precision)
+        right_operand = elem.check(report, params, self)
 
         operand_pairs = self._zip(left_operand, right_operand)
         self.elems.clear()
@@ -247,43 +258,25 @@ class ElemLogic(ElemList):
         self.op_name = operator.lower()
         self.op_func = operator_map[self.op_name]
 
-        self.fault = -1
-        self.precision = 2
         self.elems = []
+
+        self.params = None
 
     def __repr__(self):
         return '<ElemLogic left={} operator="{}" right={}>'.format(
             self.l_elem, self.op_name, self.r_elem)
 
-    def check(self, report, ctx_elem=None, fault=-1, precision=2):
-        '''Основной метод для вызова проверки элемента.
-           Все элементы принимают одинаковый набор аргументов, для поддержания
-           единого интерфейса взамодействия, но могут не использовать какие-то
-           из них.
-           ctx_elem - контекстный элемент. Для логического элемента равен None,
-               так как он и так уже содержит в себе левый и правый элементы
-               логического условия, которые приходятся друг другу контекстом.
-           fault - погрешность. Если логическое условие не выполнено,
-               дополнительно проверяется погрешность. Отрицательное значение
-               для проверки "condition" и если явно не передано в правиле
-               "rule", так как там отклонение не допустимо.
-           precision - округление. Используется логическим элементом для
-               округления перед проверкой условия.
-        '''
-        self.fault = fault
-        self.precision = precision
+    def check(self, report, params, ctx_elem=None):
+        '''Основной метод вызова проверки'''
+        self.params = params
         self._control(report)
         return self.elems
-
-    def _check_elem(self, report, elem, ctx_elem):
-        '''Вызов метода проверки у элемента'''
-        return elem.check(report, ctx_elem, self.fault, self.precision)
 
     def _control(self, report):
         '''Подготовка элементов, слияние. Определение аттрибута контроля.
            Вызов метода проверки выполнения логического условия'''
-        l_elems = self._check_elem(report, self.l_elem, self.r_elem)
-        r_elems = self._check_elem(report, self.r_elem, self.l_elem)
+        l_elems = self.l_elem.check(report, self.params, self.r_elem)
+        r_elems = self.r_elem.check(report, self.params, self.l_elem)
         elems_pairs = self._zip(l_elems, r_elems)
 
         ctrl_attr = 'bool' if self.op_name in ('and', 'or') else 'val'
@@ -306,9 +299,12 @@ class ElemLogic(ElemList):
 
     def __can_logic_control(self, l_elem, r_elem):
         '''Логический контроль не проводится между "заглушками"
-           или "заглушкой" и скаляром
+           или "заглушкой" и скаляром при условии, что выполняется проверка
+           "rule", а не "condition"
         '''
-        if l_elem.stub and r_elem.stub:
+        if not self.params.is_rule:
+            return True
+        elif l_elem.stub and r_elem.stub:
             return False
         elif l_elem.stub and r_elem.scalar:
             return False
@@ -318,13 +314,13 @@ class ElemLogic(ElemList):
 
     def __get_elem_values(self, l_elem, r_elem, attr):
         '''Округление и возвращение значений которые будут сравниваться'''
-        l_elem.round(self.precision)
-        r_elem.round(self.precision)
+        l_elem.round(self.params.precision)
+        r_elem.round(self.params.precision)
         return getattr(l_elem, attr), getattr(r_elem, attr)
 
     def __check_fault(self, l_elem_v, r_elem_v):
         '''Проверка погрешности'''
-        return abs(l_elem_v - r_elem_v) <= self.fault
+        return abs(l_elem_v - r_elem_v) <= self.params.fault
 
 
 class ElemSelector(ElemList):
@@ -337,20 +333,15 @@ class ElemSelector(ElemList):
         return '<ElemSelector action={} funcs={} elems={}>'.format(
             self.action, self.funcs, self.elems)
 
-    def check(self, report, ctx_elem, fault, precision):
-        self._select(report, ctx_elem, fault, precision)
-        self._apply_funcs(report, ctx_elem, fault, precision)
+    def check(self, *args):
+        self._select(args)
+        self._apply_funcs(*args)
         return self._flatten_elems()
 
-    def _select(self, report, ctx_elem, fault, precision):
+    def _select(self, args):
         '''Подготовка элементов, слияние. Очистка списка элементов.
            Вызов метода селектора по полю action'''
-        elems_results = []
-        for elem in self.elems:
-            elems_results.append(
-                elem.check(report, ctx_elem, fault, precision))
-        elems_results = self._zip(*elems_results)
-
+        elems_results = self._zip(*(elem.check(*args) for elem in self.elems))
         self.elems.clear()
         getattr(self, self.action)(elems_results)
 
@@ -360,7 +351,7 @@ class ElemSelector(ElemList):
            иначе добавляем левый элемент'''
         for l_elem, r_elem in elems_results:
             if l_elem.val == r_elem.val:
-                self.elems.append([Elem(None)])
+                self.elems.append([Elem(0, stub=True)])
             else:
                 self.elems.append([l_elem])
 
