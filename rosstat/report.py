@@ -2,6 +2,7 @@ from typing import List, Dict, Tuple, Optional
 from collections import defaultdict as defdict
 from dataclasses import dataclass, field, InitVar
 from lxml.etree import _ElementTree
+from .validator.schema import str_int
 
 
 @dataclass
@@ -107,15 +108,15 @@ class Report:
     def _read_data(self, xml):
         data = {}
         for section_xml in xml.xpath('/report/sections/section'):
-            section_code = str(int(section_xml.attrib['code']))
+            section_code = str_int(section_xml.attrib['code'])
             section = Section(section_code)
 
             for row_xml in section_xml.xpath('./row'):
-                row_code = str(int(row_xml.attrib['code']))
+                row_code = str_int(row_xml.attrib['code'])
                 row = Row(row_code, *self._read_row_specs(row_xml))
 
                 for col in row_xml.xpath('./col'):
-                    col_code = str(int(col.attrib['code']))
+                    col_code = str_int(col.attrib['code'])
 
                     row.add_col(col_code, col.text)
                 section.add_row(row_code, row)
@@ -129,8 +130,8 @@ class Report:
     def _get_periods(self, xml):
         period = xml.xpath('/report/@period')[0]
         if len(period) != 4:
-            self._period_code = str(int(period))
+            self._period_code = str_int(period)
         else:
             period_type, period_code = period[:2], period[2:]
-            self._period_type = str(int(period_type))
-            self._period_code = str(int(period_code))
+            self._period_type = str_int(period_type)
+            self._period_code = str_int(period_code)

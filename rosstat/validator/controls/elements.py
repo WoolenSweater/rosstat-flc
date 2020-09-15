@@ -198,10 +198,9 @@ class ElemList:
         '''Суммирование строк и/или графов'''
         if self.entries == ctx_elem.entries:  # строк в каждой графе
             self.elems = [[reduce(operator.add, l)] for l in zip(*self.elems)]
-        else:                                 # граф в каждой строке
+        elif self.rows == ctx_elem.rows:      # граф в каждой строке
             self.elems = [[reduce(operator.add, l)] for l in self.elems]
-
-        if self.rows != ctx_elem.rows:        # всех элементов
+        else:                                 # всех элементов
             self.elems = [[reduce(operator.add, chain(*self.elems))]]
 
     def _apply_unary(self, func):

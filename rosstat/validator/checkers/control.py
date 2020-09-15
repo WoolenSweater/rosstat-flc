@@ -112,4 +112,4 @@ class ControlParams:
     is_rule: bool = False
 
     def __post_init__(self):
-        self.fault = -1 if self.is_rule else self.fault
+        self.fault = float(-1) if not self.is_rule else self.fault

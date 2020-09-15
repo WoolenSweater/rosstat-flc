@@ -4,6 +4,10 @@ from .exceptions import FormatError
 from .checkers import FormatChecker, ControlChecker
 
 
+def str_int(v):
+    return str(int(v)) if v.isdigit() else v
+
+
 class Schema:
     def __init__(self, xml_tree, *, skip_warns):
         self.xml = xml_tree
@@ -48,16 +52,16 @@ class Schema:
         '''
         form = {}
         for section in self.xml.xpath('/metaForm/sections/section'):
-            section_code = section.attrib['code']
+            section_code = str_int(section.attrib['code'])
             form[section_code] = {}
 
             for row in section.xpath('./rows/row[@type!="C"]'):
-                row_code = row.attrib['code']
+                row_code = str_int(row.attrib['code'])
                 row_type = row.attrib['type']
                 form[section_code][row_code] = {}
 
                 for cell in row.xpath('./cell'):
-                    cell_code = cell.attrib['column']
+                    cell_code = str_int(cell.attrib['column'])
                     input_type = cell.attrib['inputType']
                     format_checker = FormatChecker(
                         cell, self.dics, input_type, row_type=row_type)
@@ -75,7 +79,7 @@ class Schema:
         '''Создание словаря с чекерами "по умолчанию"'''
         defaults = {}
         for cell in section.xpath('./columns/column[@type!="B"]/default-cell'):
-            cell_code = cell.attrib['column']
+            cell_code = str_int(cell.attrib['column'])
             input_type = cell.attrib['inputType']
             defaults[cell_code] = FormatChecker(cell, self.dics, input_type)
             self._dimension[section_code].append(cell_code)
@@ -186,7 +190,7 @@ class Schema:
                 self._add_error(template.format(s_idx, r_idx, c_idx, ex.msg))
             except Exception:
                 ex_msg = 'Непредвиденная ошибка проверки формата ячейки'
-                self._add_error(template.format(s_idx, r_idx, c_idx, ex.msg))
+                self._add_error(template.format(s_idx, r_idx, c_idx, ex_msg))
                 print('Unexpected Error', traceback.format_exc())
 
     def __get_format_checker(self, s_idx, r_idx, c_idx):
@@ -202,6 +206,6 @@ class Schema:
             try:
                 control.check(report, self._errors)
             except Exception:
-                self._add_error(f'Непредвиденная ошибка проверки '
-                                f'контроля {control.id}')
+                self._add_error(f'{control.id} Непредвиденная ошибка '
+                                f'проверки контроля')
                 print('Unexpected Error', traceback.format_exc())
