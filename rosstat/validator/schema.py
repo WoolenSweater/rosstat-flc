@@ -202,6 +202,8 @@ class Schema:
 
     def _check_controls(self, report):
         '''Проверка отчёта по контролям'''
+        if report.blank:
+            return
         for control in self.controls:
             try:
                 control.check(report, self._errors)

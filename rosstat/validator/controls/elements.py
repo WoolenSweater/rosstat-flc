@@ -22,7 +22,7 @@ operator_map = {
 
 class Elem:
     def __init__(self, val, section=[], rows=[], entries=[],
-                 stub=False, scalar=False):
+                 stub=False, scalar=False, blank_row=False):
         self.section = set(section)
         self.rows = set(rows)
         self.entries = set(entries)
@@ -31,8 +31,9 @@ class Elem:
 
         self._controls = []
 
-        self.scalar = scalar
-        self.stub = stub
+        self.blank_row = blank_row
+        self.scalar = scalar  # deprecated?
+        self.stub = stub      # deprecated?
         self.bool = True
         self.val = None if val is None else float(val)
 
@@ -53,11 +54,11 @@ class Elem:
         return self
 
     def __repr__(self):
-        return ('<Elem {}{}{} stub={} scalar={}: {} {}>').format(
+        return ('<Elem {}{}{} blank_row={} stub={} scalar={}: {} {}>').format(
             sorted(int(i) for i in self.section),
             sorted(int(i) for i in self.rows if i.isdigit()),
             sorted(int(i) for i in self.entries if i.isdigit()),
-            self.stub, self.scalar, self.val, self.bool)
+            self.blank_row, self.stub, self.scalar, self.val, self.bool)
 
     def __modify(self, elem, op_func):
         self.rows |= elem.rows
@@ -170,16 +171,16 @@ class ElemList:
         row = []
         for entry_code, value in self._read_entries(raw_row, dimension):
             value, stub = (value, False) if value else (0, True)
-            row.append(
-                Elem(value, self.section, [row_code], [entry_code], stub=stub))
+            row.append(Elem(value, self.section, [row_code], [entry_code],
+                            stub=stub, blank_row=raw_row.blank))
         return row
 
     def _proc_row_empty(self, row_code, dimension):
         '''Заполняем строку элементами заглушками'''
         row = []
         for entry_code in self._read_entries_empty(dimension):
-            row.append(
-                Elem(0, self.section, [row_code], [entry_code], stub=True))
+            row.append(Elem(0, self.section, [row_code], [entry_code],
+                            stub=True, blank_row=True))
         return row
 
     def _apply_funcs(self, report, params, ctx_elem):
@@ -272,50 +273,66 @@ class ElemLogic(ElemList):
         return self.elems
 
     def _control(self, report):
-        '''Подготовка элементов, слияние. Определение аттрибута контроля.
-           Вызов метода проверки выполнения логического условия'''
+        '''Подготовка элементов, слияние, передача в метод контроля'''
         l_elems = self.l_elem.check(report, self.params, self.r_elem)
         r_elems = self.r_elem.check(report, self.params, self.l_elem)
         elems_pairs = self._zip(l_elems, r_elems)
 
-        ctrl_attr = 'bool' if self.op_name in ('and', 'or') else 'val'
-        self.__control(elems_pairs, attr=ctrl_attr)
+        self.__control(elems_pairs)
 
-    def __control(self, elems_pairs, attr):
-        '''Проверка пары на выполнение условий логического оператора'''
+    def __control(self, elems_pairs):
+        '''Определение аттрибута контроля. Итерация по парам элементов,
+           выполнение проверок, обработка результата
+        '''
+        attrib = 'bool' if self.op_name in ('and', 'or') else 'val'
+
         for l_elem, r_elem in elems_pairs:
             if not self.__can_logic_control(l_elem, r_elem):
-                r_elem.controls.extend(l_elem.controls)
-                continue
+                self.__get_result(l_elem, r_elem, success=False)
+            elif not self.__logic_control(l_elem, r_elem, attrib):
+                self.__get_result(l_elem, r_elem, success=False)
+            else:
+                self.__get_result(l_elem, r_elem, success=True)
 
-            l_elem_v, r_elem_v = self.__get_elem_values(l_elem, r_elem, attr)
-            if not self.op_func(l_elem_v, r_elem_v):
-                if not self.__check_fault(l_elem.val, r_elem.val):
-                    r_elem.control_fail(l_elem, self.op_name)
+            self.elems.append(l_elem)
 
-            r_elem.controls.extend(l_elem.controls)
-            self.elems.append(r_elem)
+    def __get_result(self, l_elem, r_elem, *, success):
+        '''Обработка результата. При неуспешной проверке, формируется ошибка
+           и к списку контролей левого элемента добавляются сообщения об
+           ошибках из правого. При успешной проверке, сообщения из правого
+           элемента добавляются только если это не проверка логическкого "or"
+        '''
+        if not success:
+            l_elem.control_fail(r_elem, self.op_name)
+            l_elem.controls.extend(r_elem.controls)
+        elif not self.op_name == 'or':
+            l_elem.controls.extend(r_elem.controls)
 
     def __can_logic_control(self, l_elem, r_elem):
-        '''Логический контроль не проводится между "заглушками"
-           или "заглушкой" и скаляром при условии, что выполняется проверка
-           "rule", а не "condition"
+        '''Проверка возможности провести сравнение значений элементов.
+           Для правила - проверка происходит всегда. Для условия - проверка
+           на равенство между элементами пустых строк считается ошибкой
         '''
-        if not self.params.is_rule:
+        if self.params.is_rule:
             return True
-        elif l_elem.stub and r_elem.stub:
-            return False
-        elif l_elem.stub and r_elem.scalar:
-            return False
-        elif l_elem.scalar and r_elem.stub:
-            return False
+        elif l_elem.blank_row or r_elem.blank_row:
+            if self.op_name not in ('or', 'and'):
+                return False
         return True
 
-    def __get_elem_values(self, l_elem, r_elem, attr):
+    def __logic_control(self, l_elem, r_elem, attrib):
+        '''Получение значений и проведение проверки'''
+        l_elem_v, r_elem_v = self.__get_elem_values(l_elem, r_elem, attrib)
+        if not self.op_func(l_elem_v, r_elem_v):
+            if not self.__check_fault(l_elem.val, r_elem.val):
+                return False
+        return True
+
+    def __get_elem_values(self, l_elem, r_elem, attrib):
         '''Округление и возвращение значений которые будут сравниваться'''
         l_elem.round(self.params.precision)
         r_elem.round(self.params.precision)
-        return getattr(l_elem, attr), getattr(r_elem, attr)
+        return getattr(l_elem, attrib), getattr(r_elem, attrib)
 
     def __check_fault(self, l_elem_v, r_elem_v):
         '''Проверка погрешности'''

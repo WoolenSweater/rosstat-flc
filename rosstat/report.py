@@ -1,6 +1,6 @@
 from typing import List, Dict, Tuple, Optional
 from collections import defaultdict as defdict
-from dataclasses import dataclass, field, InitVar
+from dataclasses import dataclass, InitVar, field as f
 from lxml.etree import _ElementTree
 from .validator.schema import str_int
 
@@ -11,7 +11,12 @@ class Row:
     s1: str
     s2: str
     s3: str
-    cols: Dict[str, str] = field(default_factory=dict)
+    cols: Dict[str, str] = f(default_factory=dict)
+    _blank: bool = True
+
+    @property
+    def blank(self):
+        return self._blank
 
     def items(self, codes=None):
         codes = codes or self.cols.keys()
@@ -23,15 +28,17 @@ class Row:
 
     def add_col(self, col_code, col_text):
         self.cols[col_code] = col_text
+        self._blank = False
 
 
 @dataclass
 class Section:
     code: str
-    rows: List[Row] = field(default_factory=list)
-    row_codes: List[str] = field(default_factory=list)
+    rows: List[Row] = f(default_factory=list)
+    row_codes: List[str] = f(default_factory=list)
 
-    _ignore_specs: Tuple[set] = ({None}, {'*'}, {'0'})
+    _ignore_specs: Tuple[set] = f(default=({None}, {'*'}, {'0'}), repr=False)
+    _ignore_report_specs: Tuple[str] = f(default=('XX',), repr=False)
 
     def items(self, codes=None, specs=None):
         codes = codes or set(self.row_codes)
@@ -48,6 +55,8 @@ class Section:
             return True
         for i in range(1, 4):
             row_spec = getattr(row, f's{i}')
+            if row_spec in self._ignore_report_specs:
+                return True
             if specs[i] not in self._ignore_specs and row_spec not in specs[i]:
                 return False
         return True
@@ -60,11 +69,12 @@ class Section:
 @dataclass
 class Report:
     xml: InitVar[_ElementTree]
+    _blank: bool = True
     _title: Dict[str, str] = None
     _data: Dict[str, Section] = None
     _period_type: Optional[str] = None
     _period_code: str = None
-    _row_counters: defdict = field(default_factory=lambda: defdict(int))
+    _row_counters: defdict = f(default_factory=lambda: defdict(int))
 
     def __repr__(self):
         return '<Report title={_title}\ndata={_data}>'.format(**self.__dict__)
@@ -74,6 +84,10 @@ class Report:
         self._data = self._read_data(xml)
 
         self._get_periods(xml)
+
+    @property
+    def blank(self):
+        return self._blank
 
     @property
     def title(self):
@@ -119,6 +133,7 @@ class Report:
                     col_code = str_int(col.attrib['code'])
 
                     row.add_col(col_code, col.text)
+                    self._blank = False
                 section.add_row(row_code, row)
                 self._row_counters[(row_code, row.s1, row.s2, row.s3)] += 1
             data[section_code] = section
