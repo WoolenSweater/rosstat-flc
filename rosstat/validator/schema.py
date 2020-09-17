@@ -1,7 +1,10 @@
+import re
 import traceback
 from collections import defaultdict
 from .exceptions import FormatError
 from .checkers import FormatChecker, ControlChecker
+
+year_pattern = re.compile(r'18\d{2}|19\d{2}|20\d{2}')
 
 
 def str_int(v):
@@ -23,8 +26,8 @@ class Schema:
         self.format = self._prepare_format()
         self.controls = self._prepare_controls()
 
-        self._check_list = ('period', 'title', 'required', 'duplicates',
-                            'format', 'controls')
+        self._check_list = ('attributes', 'title', 'sections', 'required',
+                            'duplicates', 'format', 'controls')
 
     def __repr__(self):
         return ('<Schema title={title}\nform={form}\ncontrols={controls}\n'
@@ -123,11 +126,14 @@ class Schema:
             if self._errors:
                 break
 
-    def _check_period(self, report):
-        '''Проверка соответствия периода шаблона и периода в отчёте'''
+    def _check_attributes(self, report):
+        '''Проверка соответствия атрибутов шаблона: периода и года'''
         if report.period_type is not None and report.period_type != self.idp:
             self._add_error('Тип периодичности отчёта не соответствует '
                             'типу периодичности шаблона')
+
+        if not year_pattern.match(report.year):
+            self._add_error('Указан недопустимый год')
 
     def _check_title(self, report):
         '''Проверка полей тайтла'''
@@ -139,7 +145,9 @@ class Schema:
                 self._add_error(f'Блок title: повтор поля "{name}"')
             if not value:
                 self._add_error(f'Блок title: нет значения в поле "{name}"')
-
+            if name == self.obj and not self.__check_obj(value):
+                self._add_error(f'Блок title: код ОКПО должен содержать 8 '
+                                f'или 14 знаков и быть числом')
             checked.append(name)
 
         if self.obj not in checked:
@@ -148,9 +156,21 @@ class Schema:
             self.title.discard(self.obj)
 
         diff = self.title - set(checked)
-        if diff:
-            diffs = ', '.join(diff)
-            self._add_error(f'Блок title: отсутствуют поле(я) "{diffs}"')
+        for filed in diff:
+            self._add_error(f'Блок title: отсутствует поле "{filed}"')
+
+    def __check_obj(self, value):
+        '''Проверка формата ОКПО'''
+        return True if len(value) in (8, 14) and value.isdigit() else False
+
+    def _check_sections(self, report):
+        '''Проверка наличия всех разделов в отчёте'''
+        report_sec = set(code for code, _ in report.items())
+        schema_sec = set(self._dimension.keys())
+
+        diff = schema_sec - report_sec
+        for section in diff:
+            self._add_error(f'Блок sections: отсутствует раздел {section}')
 
     def _check_required(self, report):
         '''Проверка заполнения обязательных полей отчёта'''

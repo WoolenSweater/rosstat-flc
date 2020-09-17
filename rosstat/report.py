@@ -70,6 +70,7 @@ class Section:
 class Report:
     xml: InitVar[_ElementTree]
     _blank: bool = True
+    _year: str = None
     _title: Dict[str, str] = None
     _data: Dict[str, Section] = None
     _period_type: Optional[str] = None
@@ -84,6 +85,11 @@ class Report:
         self._data = self._read_data(xml)
 
         self._get_periods(xml)
+        self._get_year(xml)
+
+    @property
+    def year(self):
+        return self._year
 
     @property
     def blank(self):
@@ -150,3 +156,6 @@ class Report:
             period_type, period_code = period[:2], period[2:]
             self._period_type = str_int(period_type)
             self._period_code = str_int(period_code)
+
+    def _get_year(self, xml):
+        self._year = xml.xpath('/report/@year')[0]
