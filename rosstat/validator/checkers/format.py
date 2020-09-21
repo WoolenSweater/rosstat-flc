@@ -1,14 +1,11 @@
 from ..exceptions import (OutOfAdditionDict, OutOfList, OutOfRange, OutOfDict,
-                          InvalidStrLength, InvalidNumFormat, NotNumericValue)
+                          InvalidStrLength, InvalidNumFormat, NotNumericValue,
+                          OutOfAdditionDictCoord)
 
 
 class FormatChecker:
-    def __init__(self, cell, dics, input_type, row_type=None):
-        self._cell = cell
+    def __init__(self, cell, dics):
         self._dics = dics
-
-        self.row_type = row_type
-        self.input_type = input_type
 
         self.dic = cell.attrib.get('dic')
         self.format = cell.attrib.get('format')
@@ -18,8 +15,7 @@ class FormatChecker:
         self.format_funcs_map = {'N': self._is_num, 'C': self._is_chars}
 
     def __repr__(self):
-        return ('<FormatChecker row={row_type} input={input_type} '
-                'format={format} vld_type={vld_type} '
+        return ('<FormatChecker format={format} vld_type={vld_type} '
                 'vld_param={vld_param}>').format(**self.__dict__)
 
     @classmethod
@@ -43,56 +39,67 @@ class FormatChecker:
     @classmethod
     def _is_chars(self, value, limit):
         '''Проверка длины символьного значения поля'''
-        if not len(value) <= limit:
+        if not len(value) <= int(limit):
             raise InvalidStrLength()
 
-    def check(self, cell, errors_list):
+    def check(self, obj, spec=None, specs_map=None):
+        if isinstance(obj, str):
+            self._check_cell(obj)
+        else:
+            self._check_row(obj, spec, specs_map)
+
+    def _check_cell(self, cell):
         '''Метод вызова проверки формата значения'''
-        self._check_format(cell)
-        self._check_value(cell)
-
-    def _check_format(self, cell):
-        '''Разбор "формулы" проверки формата. Вызов метода проверки'''
-        alias, args = self.format.strip(' )').split('(')
-        format_check_func = self.format_funcs_map[alias]
-        format_check_func(cell, args)
-
-    def _check_value(self, cell):
-        '''Определение и вызов метода проверки по типу'''
+        self.__check_format(cell)
         if self.vld_type == '1':
             self.__check_value_dic(cell)
         elif self.vld_type == '2':
             self.__check_value_range(cell)
         elif self.vld_type == '3':
             self.__check_value_list(cell)
-        elif self.vld_type == '4':
-            self.__check_value_dic_add(cell)
-        elif self.vld_type == '5':
-            self.__check_value_dic_coord(cell)
 
-    def __check_value_dic(self, cell):
+    def _check_row(self, row, spec, specs_map):
+        if self.vld_type == '4':
+            self.__check_value_dic_add(row, spec)
+        elif self.vld_type == '5':
+            self.__check_value_dic_coord(row, spec, specs_map)
+
+    def __check_format(self, value):
+        '''Разбор "формулы" проверки формата. Вызов метода проверки'''
+        alias, args = self.format.strip(' )').split('(')
+        format_check_func = self.format_funcs_map[alias]
+        format_check_func(value, args)
+
+    def __check_value_dic(self, value):
         '''Проверка на вхождение в справочник'''
-        if cell not in self._dics[self.dic]:
+        if value not in self._dics[self.dic]:
             raise OutOfDict()
 
-    def __check_value_range(self, cell):
+    def __check_value_range(self, value):
         '''Проверка на вхождение в диапазон'''
-        cell = float(cell)
+        value = float(value)
         start, end = (int(n) for n in self.vld_param.split('-'))
-        if not (cell >= start and cell <= end):
+        if not (value >= start and value <= end):
             raise OutOfRange()
 
-    def __check_value_list(self, cell):
+    def __check_value_list(self, value):
         '''Проверка на вхождение в список'''
-        if cell not in self.vld_param.split(','):
+        if value not in self.vld_param.split(','):
             raise OutOfList()
 
-    def __check_value_dic_add(self, cell):
+    def __check_value_dic_add(self, row, spec):
         '''Проверка на вхождение в справочник приложение'''
-        if cell not in self._dics[self.vld_param]:
+        if getattr(row, spec) not in self._dics[self.vld_param]:
             raise OutOfAdditionDict()
 
-    def __check_value_coord(self, cell):
-        return  # пока не ясно как это првоеряется
-        attr, coords = self.vld_param.split('=#')
-        s_idx, r_idx, c_idx = coords.split(',')
+    def __check_value_dic_coord(self, row, spec, specs_map):
+        dic, coords = self.vld_param.split('=#')
+        *_, c_idx = coords.split(',')
+        spec_value = getattr(row, spec)
+        ctx_spec_value = getattr(row, specs_map[c_idx])
+
+        try:
+            if ctx_spec_value not in self._dics[self.dic][spec_value][dic]:
+                raise OutOfAdditionDictCoord()
+        except KeyError:
+            raise OutOfAdditionDictCoord()

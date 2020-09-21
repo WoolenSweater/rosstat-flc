@@ -30,8 +30,8 @@ class Schema:
                             'duplicates', 'format', 'controls')
 
     def __repr__(self):
-        return ('<Schema title={title}\nform={form}\ncontrols={controls}\n'
-                'dics={dics}>').format(**self.__dict__)
+        return '<Schema idp={idp} obj={obj} title={title}'.format(
+            **self.__dict__)
 
     def _add_error(self, error):
         '''Добавление ошибки в список'''
@@ -66,27 +66,31 @@ class Schema:
                 for cell in row.xpath('./cell'):
                     cell_code = str_int(cell.attrib['column'])
                     input_type = cell.attrib['inputType']
-                    format_checker = FormatChecker(
-                        cell, self.dics, input_type, row_type=row_type)
+                    format_checker = FormatChecker(cell, self.dics)
                     form[section_code][row_code][cell_code] = format_checker
 
                     if input_type == '1' and row_type != 'M':
                         coords = (section_code, row_code, cell_code)
                         self._required.append(coords)
 
-            form[section_code]['default'] = self._get_defaults(section,
-                                                               section_code)
+            form[section_code].update(self._get_adds(section, section_code))
         return form
 
-    def _get_defaults(self, section, section_code):
-        '''Создание словаря с чекерами "по умолчанию"'''
-        defaults = {}
-        for cell in section.xpath('./columns/column[@type!="B"]/default-cell'):
-            cell_code = str_int(cell.attrib['column'])
-            input_type = cell.attrib['inputType']
-            defaults[cell_code] = FormatChecker(cell, self.dics, input_type)
-            self._dimension[section_code].append(cell_code)
-        return defaults
+    def _get_adds(self, section, section_code):
+        '''Получение дополнительных данных для проверки: черекеры по умолчанию,
+           заполнение словаря размерности секций отчёта, определение имен
+           колонок специфик
+        '''
+        adds = {'default': {}, 'specs': {}}
+        for col in section.xpath('./columns/column[@type!="B"]'):
+            if col.attrib['type'] == 'S':
+                adds['specs'][col.attrib['code']] = col.attrib['fld']
+                continue
+            for cell in col:
+                cell_code = str_int(cell.attrib['column'])
+                adds['default'][cell_code] = FormatChecker(cell, self.dics)
+                self._dimension[section_code].append(cell_code)
+        return adds
 
     def _prepare_controls(self):
         '''Создание списка с контролями'''
@@ -104,9 +108,12 @@ class Schema:
             dict_id = dic.attrib['id']
             dics[dict_id] = {}
 
-            for term in dic.xpath('./term'):
-                term_id = term.attrib['id']
-                dics[dict_id][term_id] = term.text
+            for term_node in dic.xpath('./term'):
+                term_id = term_node.attrib.pop('id')
+                if term_id not in dics[dict_id]:
+                    dics[dict_id][term_id] = defaultdict(set)
+                for k, v in term_node.attrib.items():
+                    dics[dict_id][term_id][k].add(v)
         return dics
 
     def validate(self, report):
@@ -191,27 +198,39 @@ class Schema:
                                 f'{counter} раз(а)')
 
     def _check_format(self, report):
-        '''Проверка формата заполненых полей. Итерация по секциям и строкам'''
+        '''Итерация по секциям и строкам с передачей их в собственные методы
+           проверки формата. Для строки это проверка специфик, для полей -
+           проверка введеного значения.
+        '''
         for s_idx, section in report.items():
             for r_idx, rows in section.items():
                 for row in rows:
-                    self.__check_cells(row, s_idx, r_idx)
+                    self.__check_row(row, s_idx, r_idx)
+
+    def __check_row(self, row, s_idx, r_idx):
+        '''Итерация по ожидаемым спецификам с их последующей проверкой'''
+        specs_map = self.format[s_idx]['specs']
+        for c_idx, spec in specs_map.items():
+            self.__check_fmt(s_idx, r_idx, c_idx, row, spec, specs_map,
+                             err_msg='Раздел {}, строка {}, специфика {}. {}')
 
     def __check_cells(self, row, s_idx, r_idx):
         '''Итерация по полям строки с их последующей проверкой'''
-        template = 'Раздел {}, строка {}, графа {}. {}'
         for c_idx, cell in row.items():
-            if not cell:
-                continue
-            try:
-                format_checker = self.__get_format_checker(s_idx, r_idx, c_idx)
-                format_checker.check(cell, self._errors)
-            except FormatError as ex:
-                self._add_error(template.format(s_idx, r_idx, c_idx, ex.msg))
-            except Exception:
-                ex_msg = 'Непредвиденная ошибка проверки формата ячейки'
-                self._add_error(template.format(s_idx, r_idx, c_idx, ex_msg))
-                print('Unexpected Error', traceback.format_exc())
+            self.__check_fmt(s_idx, r_idx, c_idx, cell,
+                             err_msg='Раздел {}, строка {}, графа {}. {}')
+
+    def __check_fmt(self, s_idx, r_idx, c_idx, *args, err_msg=None):
+        '''Непосредственная проверка значения с отловом и обработкой ошибки'''
+        try:
+            checker = self.__get_format_checker(s_idx, r_idx, c_idx)
+            checker.check(*args)
+        except FormatError as ex:
+            self._add_error(err_msg.format(s_idx, r_idx, c_idx, ex.msg))
+        except Exception:
+            ex_msg = 'Непредвиденная ошибка проверки формата'
+            self._add_error(err_msg.format(s_idx, r_idx, c_idx, ex_msg))
+            print('Unexpected Error', traceback.format_exc())
 
     def __get_format_checker(self, s_idx, r_idx, c_idx):
         '''Получение чекера для поля'''

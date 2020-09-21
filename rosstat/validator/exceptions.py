@@ -34,6 +34,10 @@ class OutOfAdditionDict(FormatError):
     msg = 'Значение не существует в справочнике приложении'
 
 
+class OutOfAdditionDictCoord(FormatError):
+    msg = 'Недопустимое значение'
+
+
 class ControlError(ValidationError):
     pass
 
