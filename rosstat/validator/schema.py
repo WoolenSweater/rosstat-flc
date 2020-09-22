@@ -77,7 +77,7 @@ class Schema:
         return form
 
     def _get_adds(self, section, section_code):
-        '''Получение дополнительных данных для проверки: черекеры по умолчанию,
+        '''Получение дополнительных данных для проверки: чекеры по умолчанию,
            заполнение словаря размерности секций отчёта, определение имен
            колонок специфик
         '''
@@ -134,10 +134,13 @@ class Schema:
                 break
 
     def _check_attributes(self, report):
-        '''Проверка соответствия атрибутов шаблона: периода и года'''
+        '''Проверка соответствия атрибутов шаблона: периодов и года'''
         if report.period_type is not None and report.period_type != self.idp:
             self._add_error('Тип периодичности отчёта не соответствует '
                             'типу периодичности шаблона')
+
+        if report.period_code is None and not report.set_periods(self):
+            self._add_error('Неверное значение периода отчёта')
 
         if not year_pattern.match(report.year):
             self._add_error('Указан недопустимый год')
@@ -206,6 +209,7 @@ class Schema:
             for r_idx, rows in section.items():
                 for row in rows:
                     self.__check_row(row, s_idx, r_idx)
+                    self.__check_cells(row, s_idx, r_idx)
 
     def __check_row(self, row, s_idx, r_idx):
         '''Итерация по ожидаемым спецификам с их последующей проверкой'''
@@ -233,7 +237,7 @@ class Schema:
             print('Unexpected Error', traceback.format_exc())
 
     def __get_format_checker(self, s_idx, r_idx, c_idx):
-        '''Получение чекера для поля'''
+        '''Получение чекера для поля/строки'''
         try:
             return self.format[s_idx][r_idx][c_idx]
         except KeyError:

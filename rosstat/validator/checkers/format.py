@@ -49,7 +49,7 @@ class FormatChecker:
             self._check_row(obj, spec, specs_map)
 
     def _check_cell(self, cell):
-        '''Метод вызова проверки формата значения'''
+        '''Метод проверки значения'''
         self.__check_format(cell)
         if self.vld_type == '1':
             self.__check_value_dic(cell)
@@ -59,6 +59,7 @@ class FormatChecker:
             self.__check_value_list(cell)
 
     def _check_row(self, row, spec, specs_map):
+        '''Метод проверки специфик строки'''
         if self.vld_type == '4':
             self.__check_value_dic_add(row, spec)
         elif self.vld_type == '5':
@@ -88,11 +89,12 @@ class FormatChecker:
             raise OutOfList()
 
     def __check_value_dic_add(self, row, spec):
-        '''Проверка на вхождение в справочник приложение'''
+        '''Проверка на вхождение в справочник'''
         if getattr(row, spec) not in self._dics[self.vld_param]:
             raise OutOfAdditionDict()
 
     def __check_value_dic_coord(self, row, spec, specs_map):
+        '''Проверка на вхождение в справочник и связь с главной спецификой'''
         dic, coords = self.vld_param.split('=#')
         *_, c_idx = coords.split(',')
         spec_value = getattr(row, spec)

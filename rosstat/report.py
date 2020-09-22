@@ -5,6 +5,20 @@ from lxml.etree import _ElementTree
 from .validator.schema import str_int
 
 
+def max_divider(num, terms):
+    def _calc(a, b):
+        mn = min(a, b)
+        mx = max(a, b)
+        for i in range(mn, 1, -1):
+            if mn % i == 0 and mx % i == 0:
+                return i
+        return 1
+
+    for term_id in terms:
+        num = _calc(num, int(term_id))
+    return num
+
+
 @dataclass
 class Row:
     code: str
@@ -73,8 +87,9 @@ class Report:
     _year: str = None
     _title: Dict[str, str] = None
     _data: Dict[str, Section] = None
+    _period_raw: str = None
     _period_type: Optional[str] = None
-    _period_code: str = None
+    _period_code: Optional[str] = None
     _row_counters: defdict = f(default_factory=lambda: defdict(int))
 
     def __repr__(self):
@@ -148,14 +163,41 @@ class Report:
     def _read_row_specs(self, row):
         return (row.attrib.get(f's{i}') for i in range(1, 4))
 
-    def _get_periods(self, xml):
-        period = xml.xpath('/report/@period')[0]
-        if len(period) != 4:
-            self._period_code = str_int(period)
-        else:
-            period_type, period_code = period[:2], period[2:]
-            self._period_type = str_int(period_type)
-            self._period_code = str_int(period_code)
-
     def _get_year(self, xml):
         self._year = xml.xpath('/report/@year')[0]
+
+    def _get_periods(self, xml):
+        self._period_raw = xml.xpath('/report/@period')[0]
+        if len(self._period_raw) == 4:
+            self._period_type = str_int(self._period_raw[:2])
+            self._period_code = str_int(self._period_raw[2:])
+
+    def set_periods(self, schema):
+        try:
+            periods_id = self._get_periods_id(schema.dics)
+
+            if int(self._period_raw) not in periods_id:
+                return False
+
+            max_code = max(periods_id)
+
+            if max_code <= int(schema.idp):
+                self._period_type = schema.idp
+                self._period_code = self._period_raw
+                return True
+
+            max_div = max_divider(max_code, periods_id)
+
+            if max_code <= int(schema.idp) * max_div:
+                self._period_type = schema.idp
+                self._period_code = str(int(int(self._period_raw) / max_div))
+                return True
+            return False
+        except Exception as ex:
+            return False
+
+    def _get_periods_id(self, dics):
+        try:
+            return [int(term_id) for term_id in dics['s_time'].keys()]
+        except KeyError:
+            return [int(term_id) for term_id in dics['s_mes'].keys()]
