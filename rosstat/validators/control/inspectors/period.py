@@ -1,25 +1,25 @@
 import re
-from ..exceptions import PeriodExprError
+from .exceptions import PeriodExprError
 
 in_pattern = re.compile(r'^\(&npin\(([\d,]+)\)\)$')
 cp_pattern = re.compile(r'^&np([=<>]+)(\d+)$')
 
 
-class PeriodClause:
-    def __init__(self, control, _id):
-        self.id = _id
+class PeriodInspector:
+    def __init__(self, control):
         self.period_clause = control.attrib.get('periodClause', '').strip()
 
     def __repr__(self):
-        return '<PeriodClause clause={period_clause}>'.format(**self.__dict__)
+        return '<PeriodInspector clause={period_clause}>'.format(
+            **self.__dict__)
 
-    def _normolize_period_clause(self) -> None:
+    def _normolize_period_clause(self):
+        '''Нормализация правила'''
         self.period_clause = self.period_clause.replace(' ', '').lower()
         self.period_clause = self.period_clause.replace('and', ' and ')
         self.period_clause = self.period_clause.replace('or', ' or ')
 
     def check(self, report):
-        '''Метод вызова проверки периода контроля'''
         if not self.period_clause:
             return True
 
@@ -34,7 +34,7 @@ class PeriodClause:
         '''Разбор формулы проверки периода с помощью регулярки'''
         result = pattern.match(string)
         if result is None:
-            raise PeriodExprError(self.id)
+            raise PeriodExprError()
         return result
 
     def _check_in(self, report):

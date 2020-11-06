@@ -2,7 +2,7 @@ from typing import List, Dict, Tuple, Optional
 from collections import defaultdict as defdict
 from dataclasses import dataclass, InitVar, field as f
 from lxml.etree import _ElementTree
-from .validator.schema import str_int
+from .schema import str_int
 
 
 def max_divider(num, terms):
@@ -34,10 +34,10 @@ class Row:
 
     def items(self, codes=None):
         codes = codes or self.cols.keys()
-        for entry_code in codes:
-            yield entry_code, self.get_entry(entry_code)
+        for col_code in codes:
+            yield col_code, self.get_col(col_code)
 
-    def get_entry(self, code):
+    def get_col(self, code):
         return self.cols.get(code)
 
     def add_col(self, col_code, col_text):
@@ -172,24 +172,24 @@ class Report:
             self._period_type = str_int(self._period_raw[:2])
             self._period_code = str_int(self._period_raw[2:])
 
-    def set_periods(self, schema):
+    def set_periods(self, dics, idp):
         try:
-            periods_id = self._get_periods_id(schema.dics)
+            periods_id = self._get_periods_id(dics)
 
             if int(self._period_raw) not in periods_id:
                 return False
 
             max_code = max(periods_id)
 
-            if max_code <= int(schema.idp):
-                self._period_type = schema.idp
+            if max_code <= int(idp):
+                self._period_type = idp
                 self._period_code = self._period_raw
                 return True
 
             max_div = max_divider(max_code, periods_id)
 
-            if max_code <= int(schema.idp) * max_div:
-                self._period_type = schema.idp
+            if max_code <= int(idp) * max_div:
+                self._period_type = idp
                 self._period_code = str(int(int(self._period_raw) / max_div))
                 return True
             return False

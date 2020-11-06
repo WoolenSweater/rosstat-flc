@@ -80,8 +80,8 @@ class Elem:
         self.bool = False
         self._controls.append({
             'left': l_elem.val,
-            'right': self.val,
             'operator': op_name,
+            'right': self.val,
             'delta': round(l_elem.val - self.val, 2)
         })
 

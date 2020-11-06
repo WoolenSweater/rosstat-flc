@@ -1,6 +1,6 @@
 from lxml import etree
 from .report import Report
-from .validator.schema import Schema
+from .schema import Schema
 
 
 def _get_xml_etree(source):
