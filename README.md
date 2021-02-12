@@ -19,6 +19,8 @@ pip install rosstat-flc
 ```python
 from rosstat.flc import parse_schema, parse_report
 
+# На вход передаются ElementTree, Element, bytes, file name/path, или file-like объекты
+
 schema = parse_schema('xml_schema.xml')
 report = parse_report('xml_report.xml', skip_warns=True)
 

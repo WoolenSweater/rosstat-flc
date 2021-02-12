@@ -120,7 +120,7 @@ class Schema:
                     self._errors_handle(validator)
                     break
         except Exception:
-            self.errors.append({'code': '0.99',
+            self.errors.append({'code': '0.0',
                                 'name': 'Непредвиденная ошибка',
                                 'message': 'Не удалось выполнить проверку'})
             print('Unexpected Error', traceback.format_exc())

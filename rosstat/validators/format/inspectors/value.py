@@ -1,3 +1,8 @@
+from ..exceptions import (ValueBaseError, ValueNotNumberError, ValueBadFormat,
+                          ValueNotInRangeError, ValueNotInListError,
+                          ValueNotInDictError, ValueLengthError)
+
+
 class ValueInspector:
     def __init__(self, node, schema_dics):
         self._schema_dics = schema_dics
@@ -19,7 +24,7 @@ class ValueInspector:
         try:
             float(value)
         except ValueError:
-            raise ValueError('Значение не является числом')
+            raise ValueNotNumberError()
 
         value_parts = tuple(len(n) for n in value.split('.'))
         if len(value_parts) == 1:
@@ -29,21 +34,21 @@ class ValueInspector:
         i_part_lim, f_part_lim = (int(n) for n in limits.split(','))
 
         if not (i_part_len <= i_part_lim and f_part_len <= f_part_lim):
-            raise ValueError('Число не соответствует формату')
+            raise ValueBadFormat()
 
     @classmethod
     def _is_chars(self, value, limit):
         '''Проверка длины символьного значения поля'''
         if not len(value) <= int(limit):
-            raise ValueError('Длина строки больше допустимого')
+            raise ValueLengthError()
 
-    def check(self, value):
+    def check(self, coords, value):
         try:
             self.__check_format(value)
-        except ValueError as ex:
-            return str(ex)
-        else:
-            return self.__check_value(value)
+            self.__check_value(value)
+        except ValueBaseError as ex:
+            ex.update(coords)
+            raise
 
     def __check_format(self, value):
         '''Разбор "формулы" проверки формата. Вызов метода проверки'''
@@ -53,25 +58,25 @@ class ValueInspector:
 
     def __check_value(self, value):
         if self.vld_type == '1':
-            return self.__check_value_dic(value)
+            self.__check_value_dic(value)
         elif self.vld_type == '2':
-            return self.__check_value_range(value)
+            self.__check_value_range(value)
         elif self.vld_type == '3':
-            return self.__check_value_list(value)
+            self.__check_value_list(value)
 
     def __check_value_dic(self, value):
         '''Проверка на вхождение в справочник'''
         if value not in self._schema_dics[self.dic]:
-            return 'Значение не существует в справочнике'
+            raise ValueNotInDictError()
 
     def __check_value_range(self, value):
         '''Проверка на вхождение в диапазон'''
         value = float(value)
         start, end = (int(n) for n in self.vld_param.split('-'))
         if not (value >= start and value <= end):
-            return 'Значение не входит в диапазон допустимых'
+            raise ValueNotInRangeError()
 
     def __check_value_list(self, value):
         '''Проверка на вхождение в список'''
         if value not in self.vld_param.split(','):
-            return 'Значение не входит в список допустимых'
+            raise ValueNotInListError()

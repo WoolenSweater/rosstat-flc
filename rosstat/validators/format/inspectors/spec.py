@@ -1,3 +1,6 @@
+from ..exceptions import SpecBaseError, SpecNotInDictError, SpecValueError
+
+
 class SpecInspector:
     def __init__(self, node, schema_dics):
         self._schema_dics = schema_dics
@@ -10,16 +13,23 @@ class SpecInspector:
         return ('<SpecInspector vld_type={vld_type} '
                 'vld_param={vld_param}>').format(**self.__dict__)
 
-    def check(self, row, spec, specs_map):
+    def check(self, coords, row, spec, specs_map):
+        try:
+            self._check(row, spec, specs_map)
+        except SpecBaseError as ex:
+            ex.update(coords, spec)
+            raise
+
+    def _check(self, row, spec, specs_map):
         if self.vld_type == '4':
-            return self.__check_value_dic_add(row, spec)
+            self.__check_value_dic_add(row, spec)
         elif self.vld_type == '5':
-            return self.__check_value_dic_coord(row, spec, specs_map)
+            self.__check_value_dic_coord(row, spec, specs_map)
 
     def __check_value_dic_add(self, row, spec):
         '''Проверка на вхождение в справочник'''
         if getattr(row, spec) not in self._schema_dics[self.vld_param]:
-            return 'Значение не существует в справочнике приложении'
+            raise SpecNotInDictError()
 
     def __check_value_dic_coord(self, row, spec, specs_map):
         '''Проверка на вхождение в справочник и связь с главной спецификой'''
@@ -32,6 +42,6 @@ class SpecInspector:
         try:
             ctx_dic = self._schema_dics[self.dic][spec_value][dic]
             if ctx_spec_value not in ctx_dic:
-                return 'Недопустимое значение'
+                raise SpecValueError()
         except KeyError:
-            return 'Недопустимое значение'
+            raise SpecValueError()

@@ -1,5 +1,8 @@
 from ..base import AbstractValidator
 from .inspectors import ValueInspector, SpecInspector
+from .exceptions import (FormatError, DuplicateError, EmptyRowError,
+                         EmptyColumnError, NoSectionReportError,
+                         NoSectionTemplateError, NoRuleError)
 
 
 class FormatValidator(AbstractValidator):
@@ -14,10 +17,13 @@ class FormatValidator(AbstractValidator):
         return '<FormatValidator errors={errors}>'.format(**self.__dict__)
 
     def validate(self, report):
-        self._check_sections(report)
-        self._check_duplicates(report)
-        self._check_required(report)
-        self._check_format(report)
+        try:
+            self._check_sections(report)
+            self._check_duplicates(report)
+            self._check_required(report)
+            self._check_format(report)
+        except FormatError as ex:
+            self.error(ex.msg, ex.code)
 
         return not bool(self.errors)
 
@@ -27,7 +33,7 @@ class FormatValidator(AbstractValidator):
         schema_sections = set(self._schema.dimension.keys())
 
         for section in schema_sections - report_sections:
-            self.error(f'Отсутствует раздел - {section}', '1')
+            raise NoSectionReportError(section)
 
     def _check_duplicates(self, report):
         '''Проверка дубликатов строк'''
@@ -38,20 +44,18 @@ class FormatValidator(AbstractValidator):
             if counter > 1:
                 row_code, *specs = row
                 row = f'{row_code} {__fmt_specs(specs)}' if specs else row_code
-                self.error(f'Строка {row} повторяется {counter} раз(а)', '2')
+                raise DuplicateError(row, counter)
 
     def _check_required(self, report):
         '''Проверка наличия обязательных к заполнению строк и значений'''
         for sec_code, row_code, col_code in self._schema.required:
             rows = list(report.get_section(sec_code).get_rows(row_code))
             if not rows:
-                self.error(f'Раздел {sec_code}, строка {row_code} '
-                           f'не может быть пустой', '3')
+                raise EmptyRowError(sec_code, row_code)
 
             for row in rows:
                 if not row.get_col(col_code):
-                    self.error(f'Раздел {sec_code}, строка {row_code}, графа '
-                               f'{col_code} не может быть пустой', '4')
+                    raise EmptyColumnError(sec_code, row_code, col_code)
 
     def _check_format(self, report):
         '''Проверка формата строк и значений в них'''
@@ -65,31 +69,31 @@ class FormatValidator(AbstractValidator):
         '''Итерация по ожидаемым спецификам с их последующей проверкой'''
         specs_map = self.__get_specs(sec_code)
         for col_code, spec in specs_map.items():
-            coords = (sec_code, row_code, col_code)
-            self.__check_fmt(
-                coords, SpecInspector, row, spec, specs_map,
-                err_msg='Раздел {}, строка {}, специфика {}. {}', code='5')
+            self.__check_fmt((sec_code, row_code, col_code),
+                             SpecInspector, row, spec, specs_map)
 
     def __check_cells(self, sec_code, row_code, row):
         '''Итерация по значениям строки с их последующей проверкой'''
         for col_code, value in row.items():
-            coords = (sec_code, row_code, col_code)
-            self.__check_fmt(
-                coords, ValueInspector, value,
-                err_msg='Раздел {}, строка {}, графа {}. {}', code='6')
+            self.__check_fmt((sec_code, row_code, col_code),
+                             ValueInspector, value)
 
-    def __check_fmt(self, coords, inspector_class, *args, err_msg, code):
+    def __check_fmt(self, coords, inspector_class, *args):
         '''Инициализация инспектора, проверка'''
         fmt_node = self.__get_format_node(*coords)
         inspector = inspector_class(fmt_node, self._schema.dics)
-        error = inspector.check(*args)
-        if error:
-            self.error(err_msg.format(*coords, error), code)
+        inspector.check(coords, *args)
 
     def __get_format_node(self, sec_code, row_code, col_code):
-        '''Возвращает ноду с услвоиями проверки'''
-        return self._schema.format[sec_code][row_code][col_code]
+        '''Возвращает ноду с условиями проверки'''
+        try:
+            return self._schema.format[sec_code][row_code][col_code]
+        except KeyError:
+            raise NoRuleError(sec_code, row_code, col_code)
 
     def __get_specs(self, sec_code):
         '''Возвращает словарь со спецификами'''
-        return self._schema.format[sec_code]['specs']
+        try:
+            return self._schema.format[sec_code]['specs']
+        except KeyError:
+            raise NoSectionTemplateError(sec_code)

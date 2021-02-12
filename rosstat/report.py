@@ -55,7 +55,7 @@ class Section:
     _ignore_report_specs: Tuple[str] = f(default=('XX',), repr=False)
 
     def items(self, codes=None, specs=None):
-        codes = codes or set(self.row_codes)
+        codes = codes or sorted(set(self.row_codes), key=int)
         for row_code in codes:
             yield row_code, list(self.get_rows(row_code, specs=specs))
 
@@ -193,7 +193,7 @@ class Report:
                 self._period_code = str(int(int(self._period_raw) / max_div))
                 return True
             return False
-        except Exception as ex:
+        except Exception:
             return False
 
     def _get_periods_id(self, dics):
