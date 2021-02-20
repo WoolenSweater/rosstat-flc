@@ -6,15 +6,19 @@ from .exceptions import (ControlError, ConditionExprError,
 
 
 ControlParams = namedtuple('ControlParams', ('is_rule',
+                                             'formats',
+                                             'catalogs',
                                              'dimension',
                                              'precision',
                                              'fault'))
 
 
 class FormulaInspector:
-    def __init__(self, control, *, dimension, skip_warns):
+    def __init__(self, control, *, formats, catalogs, dimension, skip_warns):
         self._skip_warns = skip_warns
 
+        self.formats = formats
+        self.catalogs = catalogs
         self.dimension = dimension
         self.id = control.attrib['id']
         self.name = control.attrib['name']
@@ -55,6 +59,8 @@ class FormulaInspector:
     def __params(self, is_rule=False):
         '''Упаковка параметров для проверки в именованный кортеж'''
         return ControlParams(is_rule,
+                             self.formats,
+                             self.catalogs,
                              self.dimension,
                              self.precision,
                              self.fault if is_rule else float(-1))

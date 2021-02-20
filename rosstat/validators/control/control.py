@@ -44,6 +44,8 @@ class ControlValidator(AbstractValidator):
     def __check_control(self, report, control):
         '''Проверка контрольных значений отчёта'''
         inspector = FormulaInspector(control,
+                                     formats=self._schema.formats,
+                                     catalogs=self._schema.catalogs,
                                      dimension=self._schema.dimension,
                                      skip_warns=self._schema.skip_warns)
         for err in inspector.check(report):

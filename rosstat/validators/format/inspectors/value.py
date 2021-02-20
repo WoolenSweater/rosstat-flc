@@ -4,13 +4,13 @@ from ..exceptions import (ValueBaseError, ValueNotNumberError, ValueBadFormat,
 
 
 class ValueInspector:
-    def __init__(self, node, schema_dics):
-        self._schema_dics = schema_dics
+    def __init__(self, params, catalogs):
+        self._catalogs = catalogs
 
-        self.dic = node.attrib.get('dic')
-        self.format = node.attrib.get('format')
-        self.vld_type = node.attrib.get('vldType')
-        self.vld_param = node.attrib.get('vld')
+        self.catalog = params.get('dic')
+        self.format = params.get('format')
+        self.vld_type = params.get('vldType')
+        self.vld_param = params.get('vld')
 
         self.format_funcs_map = {'N': self._is_num, 'C': self._is_chars}
 
@@ -58,15 +58,15 @@ class ValueInspector:
 
     def __check_value(self, value):
         if self.vld_type == '1':
-            self.__check_value_dic(value)
+            self.__check_value_catalog(value)
         elif self.vld_type == '2':
             self.__check_value_range(value)
         elif self.vld_type == '3':
             self.__check_value_list(value)
 
-    def __check_value_dic(self, value):
+    def __check_value_catalog(self, value):
         '''Проверка на вхождение в справочник'''
-        if value not in self._schema_dics[self.dic]:
+        if value not in self._catalogs[self.catalog]['ids']:
             raise ValueNotInDictError()
 
     def __check_value_range(self, value):

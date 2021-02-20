@@ -37,5 +37,5 @@ class AttrValidator(AbstractValidator):
     def _check_period(self, report):
         '''Проверка кода периода'''
         if report.period_code is None:
-            if not report.set_periods(self._schema.dics, self._schema.idp):
+            if not report.set_periods(self._schema.catalogs, self._schema.idp):
                 self.error('Неверное значение периода отчёта', '3')

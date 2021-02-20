@@ -1,5 +1,6 @@
 import traceback
 from collections import defaultdict
+from .helpers import SchemaFormats, NestedDefaultdict
 from .validators import (AttrValidator, TitleValidator,
                          FormatValidator, ControlValidator)
 
@@ -19,9 +20,9 @@ class Schema:
         self.idp = self._get_idp()
         self.obj = self._get_obj()
         self.title = self._get_title()
-        self.format = self._get_format()
+        self.formats = self._get_formats()
         self.controls = self._get_controls()
-        self.dics = self._get_dics()
+        self.catalogs = self._get_catalogs()
 
         self.validators = self._init_validators()
 
@@ -41,11 +42,11 @@ class Schema:
         '''Получение ноды с заголовком'''
         return self.xml.xpath('/metaForm/title')[0]
 
-    def _get_format(self):
+    def _get_formats(self):
         '''Итерация по секциям, строкам и колонокам с получением нод,
            определяющих формат строк и значений в отчёте
         '''
-        form = {}
+        form = SchemaFormats()
         for section in self.xml.xpath('/metaForm/sections/section'):
             sec_code = str_int(section.attrib['code'])
             defaults, specs = self.__get_default_formats(section, sec_code)
@@ -57,7 +58,7 @@ class Schema:
 
                 for cell in row.xpath('./cell'):
                     col_code = str_int(cell.attrib['column'])
-                    form[sec_code][row_code][col_code] = cell
+                    form[sec_code][row_code][col_code] = cell.attrib
 
                     if self.__required_cell(row, cell):
                         coords = (sec_code, row_code, col_code)
@@ -77,33 +78,40 @@ class Schema:
             col_code = str_int(column.attrib['code'])
 
             if column.attrib['type'] == 'S':
-                specs[col_code] = column.attrib['fld']
+                specs[col_code] = column.attrib['fld'][-1]
             elif column.attrib['type'] == 'Z':
-                defaults[col_code] = column.find('default-cell')
+                defaults[col_code] = self.__get_default_cell(column)
                 self.dimension[sec_code].append(col_code)
 
         return defaults, specs
+
+    def __get_default_cell(self, column):
+        '''Возвращает словарь атрибутов дефолтной ячейки или пустой словарь'''
+        try:
+            return column.find('default-cell').attrib
+        except AttributeError:
+            return {}
 
     def _get_controls(self):
         '''Получение нод с контролями'''
         return self.xml.xpath('/metaForm/controls/control')
 
-    def _get_dics(self):
+    def _get_catalogs(self):
         '''Получение справочников'''
-        dics = {}
-        for dic in self.xml.xpath('/metaForm/dics/dic'):
-            dict_id = dic.attrib['id']
-            dics[dict_id] = {}
+        catalogs = defaultdict(dict)
+        for catalog in self.xml.xpath('/metaForm/dics/dic'):
+            catalog_id = catalog.attrib['id']
+            catalogs[catalog_id]['full'] = NestedDefaultdict(set)
+            catalogs[catalog_id]['ids'] = []
 
-            for term_node in dic.xpath('./term'):
+            for term_node in catalog.xpath('./term'):
                 term_id = term_node.attrib.pop('id')
 
-                if term_id not in dics[dict_id]:
-                    dics[dict_id][term_id] = defaultdict(set)
+                catalogs[catalog_id]['ids'].append(term_id)
 
                 for attr, value in term_node.attrib.items():
-                    dics[dict_id][term_id][attr].add(value)
-        return dics
+                    catalogs[catalog_id]['full'][term_id][attr].add(value)
+        return catalogs
 
     def _init_validators(self):
         '''Инициализация валидаторов'''

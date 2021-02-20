@@ -1,3 +1,4 @@
+from math import gcd
 from typing import List, Dict, Tuple, Optional
 from collections import defaultdict as defdict
 from dataclasses import dataclass, InitVar, field as f
@@ -6,16 +7,9 @@ from .schema import str_int
 
 
 def max_divider(num, terms):
-    def _calc(a, b):
-        mn = min(a, b)
-        mx = max(a, b)
-        for i in range(mn, 1, -1):
-            if mn % i == 0 and mx % i == 0:
-                return i
-        return 1
-
+    '''НОД для списка чисел'''
     for term_id in terms:
-        num = _calc(num, int(term_id))
+        num = gcd(num, int(term_id))
     return num
 
 
@@ -30,19 +24,27 @@ class Row:
 
     @property
     def blank(self):
+        '''Флаг указывающий, что строка пустая'''
         return self._blank
 
     def items(self, codes=None):
+        '''Итерация по элементам строки'''
         codes = codes or self.cols.keys()
         for col_code in codes:
             yield col_code, self.get_col(col_code)
 
     def get_col(self, code):
+        '''Возвращает указанную колонку'''
         return self.cols.get(code)
 
     def add_col(self, col_code, col_text):
+        '''Добавление колонки в строку'''
         self.cols[col_code] = col_text
         self._blank = False
+
+    def get_spec(self, idx):
+        '''Возвращает специфику по её "индексу"'''
+        return getattr(self, f's{idx}')
 
 
 @dataclass
@@ -55,16 +57,19 @@ class Section:
     _ignore_report_specs: Tuple[str] = f(default=('XX',), repr=False)
 
     def items(self, codes=None, specs=None):
+        '''Итерация по элементам раздела'''
         codes = codes or sorted(set(self.row_codes), key=int)
         for row_code in codes:
             yield row_code, list(self.get_rows(row_code, specs=specs))
 
     def get_rows(self, code, specs=None):
+        '''Возвращает строки с указанным кодом и спецификами'''
         for row_code, row in zip(self.row_codes, self.rows):
             if row_code == code and self._check_specs(row, specs):
                 yield row
 
     def _check_specs(self, row, specs):
+        '''Проверка, входит ли строка в список переданных специфик'''
         if specs is None:
             return True
         for i in range(1, 4):
@@ -76,6 +81,7 @@ class Section:
         return True
 
     def add_row(self, row_code, row):
+        '''Добавление строки в раздел'''
         self.row_codes.append(row_code)
         self.rows.append(row)
 
@@ -127,13 +133,16 @@ class Report:
         return self._row_counters
 
     def items(self):
-        for k, v in self._data.items():
-            yield k, v
+        '''Итерация по разделам отчёта'''
+        for sec_code, section in self._data.items():
+            yield sec_code, section
 
     def get_section(self, section_code):
+        '''Возвращает указанную секцию'''
         return self._data.get(section_code)
 
     def _read_title(self, xml):
+        '''Чтение заголовка отчёта'''
         title = []
         for node in xml.xpath('/report/title/item'):
             item = (node.attrib['name'], node.attrib.get('value', '').strip())
@@ -141,6 +150,7 @@ class Report:
         return title
 
     def _read_data(self, xml):
+        '''Чтение тела отчёта (разделы/строки/колонки)'''
         data = {}
         for section_xml in xml.xpath('/report/sections/section'):
             section_code = str_int(section_xml.attrib['code'])
@@ -161,20 +171,26 @@ class Report:
         return data
 
     def _read_row_specs(self, row):
+        '''Чтение спицифик строки'''
         return (row.attrib.get(f's{i}') for i in range(1, 4))
 
     def _get_year(self, xml):
+        '''Получение года из корня отчёта'''
         self._year = xml.xpath('/report/@year')[0]
 
     def _get_periods(self, xml):
+        '''Получение и разбиение периода из корня отчёта'''
         self._period_raw = xml.xpath('/report/@period')[0]
         if len(self._period_raw) == 4:
             self._period_type = str_int(self._period_raw[:2])
             self._period_code = str_int(self._period_raw[2:])
 
-    def set_periods(self, dics, idp):
+    def set_periods(self, catalogs, idp):
+        '''Попытка привести тип и код периода к формату
+           описанному в приказе Росстата
+        '''
         try:
-            periods_id = self._get_periods_id(dics)
+            periods_id = self._get_periods_id(catalogs)
 
             if int(self._period_raw) not in periods_id:
                 return False
@@ -196,8 +212,9 @@ class Report:
         except Exception:
             return False
 
-    def _get_periods_id(self, dics):
+    def _get_periods_id(self, catalogs):
+        '''Получение идентификаторов допустимых периодов из справочника'''
         try:
-            return [int(term_id) for term_id in dics['s_time'].keys()]
+            return [int(term_id) for term_id in catalogs['s_time']['ids']]
         except KeyError:
-            return [int(term_id) for term_id in dics['s_mes'].keys()]
+            return [int(term_id) for term_id in catalogs['s_mes']['ids']]

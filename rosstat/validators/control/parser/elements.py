@@ -21,11 +21,11 @@ operator_map = {
 
 
 class Elem:
-    def __init__(self, val, section=[], rows=[], entries=[],
+    def __init__(self, val, section=[], rows=[], columns=[],
                  stub=False, scalar=False, blank_row=False):
         self.section = set(section)
         self.rows = set(rows)
-        self.entries = set(entries)
+        self.columns = set(columns)
         # Возможно стоит выпилить координаты из элементов
         # они часто не информативны и могу сбить с толку
 
@@ -57,12 +57,12 @@ class Elem:
         return ('<Elem {}{}{} blank_row={} stub={} scalar={}: {} {}>').format(
             sorted(int(i) for i in self.section),
             sorted(int(i) for i in self.rows if i.isdigit()),
-            sorted(int(i) for i in self.entries if i.isdigit()),
+            sorted(int(i) for i in self.columns if i.isdigit()),
             self.blank_row, self.stub, self.scalar, self.val, self.bool)
 
     def __modify(self, elem, op_func):
         self.rows |= elem.rows
-        self.entries |= elem.entries
+        self.columns |= elem.columns
         try:
             self.val = op_func(self.val, elem.val)
         except ZeroDivisionError:
@@ -110,13 +110,13 @@ class Elem:
 
 
 class ElemList:
-    def __init__(self, section, rows, entries,
+    def __init__(self, section, rows, columns,
                  s1=[None], s2=[None], s3=[None]):
         self.section = section[0]
         self.rows = set(rows)
-        self.entries = set(entries)
+        self.columns = set(columns)
 
-        self.specs = {1: set(s1), 2: set(s2), 3: set(s3)}
+        self.specs = {1: s1, 2: s2, 3: s3}
 
         self.funcs = []
         self.elems = []
@@ -125,7 +125,7 @@ class ElemList:
         return '<ElemList [{}]{}{} funcs={} elems={}>'.format(
             self.section,
             sorted(int(i) for i in self.rows if i.isdigit()),
-            sorted(int(i) for i in self.entries if i.isdigit()),
+            sorted(int(i) for i in self.columns if i.isdigit()),
             self.funcs, self.elems)
 
     def __neg__(self):
@@ -133,9 +133,47 @@ class ElemList:
         return self
 
     def check(self, report, params, ctx_elem):
+        self._prepare_specs(params.formats, params.catalogs)
         self._read_data(report, params.dimension)
         self._apply_funcs(report, params, ctx_elem)
         return self._flatten_elems()
+
+    def _prepare_specs(self, formats, catalogs):
+        '''Подготовка специфик. Если список специфик не "пуст" и не содержит
+           один только ключ "*", пытаемся "развернуть" его к простому списку.
+           Другими словами, все диапазоны специфик привести к явному набору в
+           соответствии со справочником. Затем конвертируем всё в множество
+        '''
+        for spec_idx in range(1, 4):
+            if self.specs[spec_idx] in ([None], ['*']):
+                self.specs[spec_idx] = set(self.specs[spec_idx])
+            else:
+                spec_list = self.__get_spec_list(formats, catalogs, spec_idx)
+                self.specs[spec_idx] = set(self.__expand_specs(spec_list,
+                                                               spec_idx))
+
+    def __get_spec_list(self, formats, catalogs, spec_idx):
+        '''Определяем набор параметров для специфики указанной строки, раздела.
+           Выбираем список специфик по имени справочника из наборапараметров
+        '''
+        row_code = next(iter(self.rows))
+        params = formats.get_spec_params(self.section, row_code, spec_idx)
+        return catalogs.get(params.get('dic'), {}).get('ids', [])
+
+    def __expand_specs(self, spec_list, spec_idx):
+        '''Перебираем специфики. Простые специфики сразу возвращаем. Если
+           имеем диапазон, определяем индекс начальной и конечной специфик
+           из списка-справочника, итерируемся по определенному диапазону,
+           возвращая соответствующие специфики из списка-справочника
+        '''
+        for spec in self.specs[spec_idx]:
+            if '-' in spec:
+                start, end = spec.split('-')
+                for i in range(spec_list.index(start.strip()),
+                               spec_list.index(end.strip()) + 1):
+                    yield spec_list[i]
+            else:
+                yield spec
 
     def _read_data(self, report, dimension):
         '''Чтение отчёта и конвертация его в массивы элементов'''
@@ -153,33 +191,34 @@ class ElemList:
             return raw_sec.items(specs=self.specs)
         return raw_sec.items(codes=self.rows, specs=self.specs)
 
-    def _read_entries(self, raw_row, dimension):
+    def _read_columns(self, raw_row, dimension):
         '''Читаем графы если строка не пустая'''
-        if self.entries == {'*'}:
+        if self.columns == {'*'}:
             return raw_row.items(codes=dimension[self.section])
-        return raw_row.items(codes=self.entries)
+        return raw_row.items(codes=self.columns)
 
-    def _read_entries_empty(self, dimension):
+    def _read_columns_empty(self, dimension):
         '''Читаем графы если строка пустая'''
-        if self.entries == {'*'}:
+        if self.columns == {'*'}:
             return iter(dimension[self.section])
-        return iter(self.entries)
+        return iter(self.columns)
 
     def _proc_row(self, raw_row, row_code, dimension):
         '''Заполняем строку элементами со значениями из отчета, отсутствующие
-           значения замещаем заглушкой'''
+           значения замещаем заглушкой
+        '''
         row = []
-        for entry_code, value in self._read_entries(raw_row, dimension):
+        for col_code, value in self._read_columns(raw_row, dimension):
             value, stub = (value, False) if value else (0, True)
-            row.append(Elem(value, self.section, [row_code], [entry_code],
+            row.append(Elem(value, self.section, [row_code], [col_code],
                             stub=stub, blank_row=raw_row.blank))
         return row
 
     def _proc_row_empty(self, row_code, dimension):
         '''Заполняем строку элементами заглушками'''
         row = []
-        for entry_code in self._read_entries_empty(dimension):
-            row.append(Elem(0, self.section, [row_code], [entry_code],
+        for col_code in self._read_columns_empty(dimension):
+            row.append(Elem(0, self.section, [row_code], [col_code],
                             stub=True, blank_row=True))
         return row
 
@@ -197,7 +236,7 @@ class ElemList:
 
     def _apply_sum(self, ctx_elem):
         '''Суммирование строк и/или графов'''
-        if self.entries == ctx_elem.entries:  # строк в каждой графе
+        if self.columns == ctx_elem.columns:  # строк в каждой графе
             self.elems = [[reduce(operator.add, l)] for l in zip(*self.elems)]
         elif self.rows == ctx_elem.rows:      # граф в каждой строке
             self.elems = [[reduce(operator.add, l)] for l in self.elems]
@@ -356,7 +395,8 @@ class ElemSelector(ElemList):
 
     def _select(self, args):
         '''Подготовка элементов, слияние. Очистка списка элементов.
-           Вызов метода селектора по полю action'''
+           Вызов метода селектора по полю action
+        '''
         elems_results = self._zip(*(elem.check(*args) for elem in self.elems))
         self.elems.clear()
         getattr(self, self.action)(elems_results)
@@ -364,7 +404,8 @@ class ElemSelector(ElemList):
     def nullif(self, elems_results):
         '''Сравнивает результаты левого и правого элементов. Добавляем к
            результату элемент со значением None если значения равны,
-           иначе добавляем левый элемент'''
+           иначе добавляем левый элемент
+        '''
         for l_elem, r_elem in elems_results:
             if l_elem.val == r_elem.val:
                 self.elems.append([Elem(0, stub=True)])
@@ -373,7 +414,8 @@ class ElemSelector(ElemList):
 
     def coalesce(self, elems_results):
         '''Сравнивает результаты элементов каждой "линии" (строки/графа).
-           Добавляем к результату первый элемент значение которого не None'''
+           Добавляем к результату первый элемент значение которого не None
+        '''
         for line_elems in elems_results:
             first_elem = next([e] for e in line_elems if e.val is not None)
             self.elems.append(first_elem)

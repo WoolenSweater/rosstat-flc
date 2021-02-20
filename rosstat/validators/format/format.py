@@ -68,32 +68,32 @@ class FormatValidator(AbstractValidator):
     def __check_row(self, sec_code, row_code, row):
         '''Итерация по ожидаемым спецификам с их последующей проверкой'''
         specs_map = self.__get_specs(sec_code)
-        for col_code, spec in specs_map.items():
-            self.__check_fmt((sec_code, row_code, col_code),
-                             SpecInspector, row, spec, specs_map)
+        for col_code, spec_idx in specs_map.items():
+            self.__check_format((sec_code, row_code, col_code),
+                                SpecInspector, row, spec_idx, specs_map)
 
     def __check_cells(self, sec_code, row_code, row):
         '''Итерация по значениям строки с их последующей проверкой'''
         for col_code, value in row.items():
-            self.__check_fmt((sec_code, row_code, col_code),
-                             ValueInspector, value)
+            self.__check_format((sec_code, row_code, col_code),
+                                ValueInspector, value)
 
-    def __check_fmt(self, coords, inspector_class, *args):
+    def __check_format(self, coords, inspector_class, *args):
         '''Инициализация инспектора, проверка'''
-        fmt_node = self.__get_format_node(*coords)
-        inspector = inspector_class(fmt_node, self._schema.dics)
+        inspector = inspector_class(self.__get_format(*coords),
+                                    self._schema.catalogs)
         inspector.check(coords, *args)
 
-    def __get_format_node(self, sec_code, row_code, col_code):
-        '''Возвращает ноду с условиями проверки'''
+    def __get_format(self, sec_code, row_code, col_code):
+        '''Возвращает словарь с условиями проверки'''
         try:
-            return self._schema.format[sec_code][row_code][col_code]
+            return self._schema.formats[sec_code][row_code][col_code]
         except KeyError:
             raise NoRuleError(sec_code, row_code, col_code)
 
     def __get_specs(self, sec_code):
         '''Возвращает словарь со спецификами'''
         try:
-            return self._schema.format[sec_code]['specs']
+            return self._schema.formats[sec_code]['specs']
         except KeyError:
             raise NoSectionTemplateError(sec_code)

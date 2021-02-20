@@ -31,17 +31,15 @@ t_COALESCE = r'coalesce'
 
 
 def _range(rng):
-    _from, _to = rng.split('-')
-    return [str(i) for i in range(int(_from), int(_to) + 1)]
+    start, end = rng.split('-')
+    return (str(i) for i in range(int(start), int(end) + 1))
 
 
 @TOKEN(r'\[.+?\]')
 def t_CODE(t):
     code = []
     for i in t.value[1:-1].split(','):
-        if i.isdigit():
-            code.append(i)
-        elif '-' in i:
+        if ('-' in i) and ('.' not in i):
             code.extend(_range(i))
         else:
             code.append(i)
