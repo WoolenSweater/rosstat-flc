@@ -11,15 +11,14 @@ class ControlValidator(AbstractValidator):
         self.errors = []
 
         self._template = ('{control_name}; слева {left} {operator} '
-                          'справа {right} разница {delta}; '
-                          'обязательность {tip}')
+                          'справа {right} разница {delta}')
 
     def __repr__(self):
         return '<ControlValidator errors={errors}>'.format(**self.__dict__)
 
-    def __fmt_error(self, err, name, tip):
+    def __fmt_error(self, err, name):
         '''Форматирование сообщения о непройденном контроле'''
-        return self._template.format(control_name=name, tip=tip, **err)
+        return self._template.format(control_name=name, **err)
 
     def validate(self, report):
         self._check_controls(report)
@@ -49,5 +48,5 @@ class ControlValidator(AbstractValidator):
                                      dimension=self._schema.dimension,
                                      skip_warns=self._schema.skip_warns)
         for err in inspector.check(report):
-            message = self.__fmt_error(err, inspector.name, inspector.tip)
-            self.error(message, inspector.id)
+            message = self.__fmt_error(err, inspector.name)
+            self.error(message, inspector.id, tip=inspector.tip)

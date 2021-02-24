@@ -25,7 +25,7 @@ class FormulaInspector:
         self.rule = control.attrib['rule'].strip()
         self.condition = control.attrib['condition'].strip()
 
-        self.tip = 'да' if int(control.attrib.get('tip', '1')) else 'нет'
+        self.tip = bool(int(control.attrib.get('tip', '1')))
         self.fault = float(control.attrib.get('fault', '-1'))
         self.precision = int(control.attrib.get('precision', '2'))
 

@@ -68,7 +68,7 @@ def p_elem(p):
 
 def p_num_elem(p):
     '''elem : NUM'''
-    p[0] = Elem(p[1], scalar=True)
+    p[0] = Elem(p[1])
 
 
 def p_coords(p):

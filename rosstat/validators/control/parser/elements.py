@@ -21,19 +21,13 @@ operator_map = {
 
 
 class Elem:
-    def __init__(self, val, section=[], rows=[], columns=[],
-                 stub=False, scalar=False, blank_row=False):
+    def __init__(self, val, section=[], rows=[], columns=[]):
         self.section = set(section)
         self.rows = set(rows)
         self.columns = set(columns)
-        # Возможно стоит выпилить координаты из элементов
-        # они часто не информативны и могу сбить с толку
 
         self._controls = []
 
-        self.blank_row = blank_row
-        self.scalar = scalar  # deprecated?
-        self.stub = stub      # deprecated?
         self.bool = True
         self.val = None if val is None else float(val)
 
@@ -54,11 +48,11 @@ class Elem:
         return self
 
     def __repr__(self):
-        return ('<Elem {}{}{} blank_row={} stub={} scalar={}: {} {}>').format(
+        return ('<Elem {}{}{} value={} bool={}>').format(
             sorted(int(i) for i in self.section),
             sorted(int(i) for i in self.rows if i.isdigit()),
             sorted(int(i) for i in self.columns if i.isdigit()),
-            self.blank_row, self.stub, self.scalar, self.val, self.bool)
+            self.val, self.bool)
 
     def __modify(self, elem, op_func):
         self.rows |= elem.rows
@@ -73,16 +67,16 @@ class Elem:
     def controls(self):
         return self._controls
 
-    def control_fail(self, l_elem, op_name):
+    def control_fail(self, r_elem, op_name):
         '''Добавление значений которые не прошли контроль и установка флага
            указывающего на провал проверки
         '''
         self.bool = False
         self._controls.append({
-            'left': l_elem.val,
+            'left': self.val,
             'operator': op_name,
-            'right': self.val,
-            'delta': round(l_elem.val - self.val, 2)
+            'right': r_elem.val,
+            'delta': round(self.val - r_elem.val, 2)
         })
 
     def check(self, *args):
@@ -91,7 +85,6 @@ class Elem:
     def isnull(self, replace):
         '''Замена None на replace. Так же снимает признак "заглушки"'''
         self.val = self.val or float(replace)
-        self.stub = False
 
     def round(self, ndig, trunc=0):
         '''Округление/отсечение до ndig знаков'''
@@ -209,17 +202,14 @@ class ElemList:
         '''
         row = []
         for col_code, value in self._read_columns(raw_row, dimension):
-            value, stub = (value, False) if value else (0, True)
-            row.append(Elem(value, self.section, [row_code], [col_code],
-                            stub=stub, blank_row=raw_row.blank))
+            row.append(Elem(value or 0, self.section, [row_code], [col_code]))
         return row
 
     def _proc_row_empty(self, row_code, dimension):
         '''Заполняем строку элементами заглушками'''
         row = []
         for col_code in self._read_columns_empty(dimension):
-            row.append(Elem(0, self.section, [row_code], [col_code],
-                            stub=True, blank_row=True))
+            row.append(Elem(0, self.section, [row_code], [col_code]))
         return row
 
     def _apply_funcs(self, report, params, ctx_elem):
@@ -326,9 +316,7 @@ class ElemLogic(ElemList):
         attrib = 'bool' if self.op_name in ('and', 'or') else 'val'
 
         for l_elem, r_elem in elems_pairs:
-            if not self.__can_logic_control(l_elem, r_elem):
-                self.__get_result(l_elem, r_elem, success=False)
-            elif not self.__logic_control(l_elem, r_elem, attrib):
+            if not self.__logic_control(l_elem, r_elem, attrib):
                 self.__get_result(l_elem, r_elem, success=False)
             else:
                 self.__get_result(l_elem, r_elem, success=True)
@@ -346,18 +334,6 @@ class ElemLogic(ElemList):
             l_elem.controls.extend(r_elem.controls)
         elif not self.op_name == 'or':
             l_elem.controls.extend(r_elem.controls)
-
-    def __can_logic_control(self, l_elem, r_elem):
-        '''Проверка возможности провести сравнение значений элементов.
-           Для правила - проверка происходит всегда. Для условия - проверка
-           на равенство между элементами пустых строк считается ошибкой
-        '''
-        if self.params.is_rule:
-            return True
-        elif l_elem.blank_row or r_elem.blank_row:
-            if self.op_name not in ('or', 'and'):
-                return False
-        return True
 
     def __logic_control(self, l_elem, r_elem, attrib):
         '''Получение значений и проведение проверки'''
@@ -408,7 +384,7 @@ class ElemSelector(ElemList):
         '''
         for l_elem, r_elem in elems_results:
             if l_elem.val == r_elem.val:
-                self.elems.append([Elem(0, stub=True)])
+                self.elems.append([Elem(0)])
             else:
                 self.elems.append([l_elem])
 

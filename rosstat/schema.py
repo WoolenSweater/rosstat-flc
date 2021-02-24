@@ -130,7 +130,8 @@ class Schema:
         except Exception:
             self.errors.append({'code': '0.0',
                                 'name': 'Непредвиденная ошибка',
-                                'message': 'Не удалось выполнить проверку'})
+                                'message': 'Не удалось выполнить проверку',
+                                'tip': False})
             print('Unexpected Error', traceback.format_exc())
         finally:
             return self.errors
@@ -141,5 +142,6 @@ class Schema:
             self.errors.append({
                 'code': f'{validator.code}.{error.code}',
                 'name': validator.name,
-                'message': error.message
+                'message': error.message,
+                'tip': error.tip
             })

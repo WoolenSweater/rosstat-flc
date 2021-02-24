@@ -5,7 +5,7 @@ year_pattern = re.compile(r'18\d{2}|19\d{2}|20\d{2}')
 
 
 class AttrValidator(AbstractValidator):
-    name = 'Проверка аттрибутов'
+    name = 'Проверка атрибутов'
     code = '1'
 
     def __init__(self, schema):
