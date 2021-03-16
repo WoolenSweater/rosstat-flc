@@ -84,7 +84,7 @@ class Elem:
 
     def isnull(self, replace):
         '''Замена None на replace. Так же снимает признак "заглушки"'''
-        self.val = self.val or float(replace)
+        self.val = float(replace) if self.val is None else self.val
 
     def round(self, ndig, trunc=0):
         '''Округление/отсечение до ndig знаков'''
@@ -230,7 +230,9 @@ class ElemList:
             self.elems = [[reduce(operator.add, l)] for l in zip(*self.elems)]
         elif self.rows == ctx_elem.rows:      # граф в каждой строке
             self.elems = [[reduce(operator.add, l)] for l in self.elems]
-        else:                                 # всех элементов
+        elif not self.elems:                  # всех ячеек (секция пустая)
+            self.elems = [[Elem(0, self.section, '*', '*')]]
+        else:                                 # всех ячеек (секция не пустая)
             self.elems = [[reduce(operator.add, chain(*self.elems))]]
 
     def _apply_unary(self, func):

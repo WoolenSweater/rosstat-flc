@@ -1,4 +1,5 @@
 from ..base import AbstractValidator
+from .exceptions import PrevPeriodNotImpl
 from .inspectors import PeriodInspector, FormulaInspector
 
 
@@ -16,9 +17,9 @@ class ControlValidator(AbstractValidator):
     def __repr__(self):
         return '<ControlValidator errors={errors}>'.format(**self.__dict__)
 
-    def __fmt_error(self, err, name):
+    def __fmt_control(self, ctrl, name):
         '''Форматирование сообщения о непройденном контроле'''
-        return self._template.format(control_name=name, **err)
+        return self._template.format(control_name=name, **ctrl)
 
     def validate(self, report):
         self._check_controls(report)
@@ -31,9 +32,15 @@ class ControlValidator(AbstractValidator):
             return
 
         for control in self._schema.controls:
-            if not self.__check_period(report, control):
-                continue
-            self.__check_control(report, control)
+            self._check_control(report, control)
+
+    def _check_control(self, report, control):
+        '''Обёртка для обработки исключения'''
+        try:
+            if self.__check_period(report, control):
+                self.__check_control(report, control)
+        except PrevPeriodNotImpl as ex:
+            self.error(ex.msg, ex.id, level=0)
 
     def __check_period(self, report, control):
         '''Проверка соответствия периода контроля периоду в отчёте'''
@@ -47,6 +54,6 @@ class ControlValidator(AbstractValidator):
                                      catalogs=self._schema.catalogs,
                                      dimension=self._schema.dimension,
                                      skip_warns=self._schema.skip_warns)
-        for err in inspector.check(report):
-            message = self.__fmt_error(err, inspector.name)
-            self.error(message, inspector.id, tip=inspector.tip)
+        for ctrl in inspector.check(report):
+            message = self.__fmt_control(ctrl, inspector.name)
+            self.error(message, inspector.id, level=inspector.tip)

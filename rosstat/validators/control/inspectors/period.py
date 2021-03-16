@@ -1,5 +1,5 @@
 import re
-from .exceptions import PeriodExprError
+from ..exceptions import PeriodExprError
 
 in_pattern = re.compile(r'^\(&npin\(([\d,]+)\)\)$')
 cp_pattern = re.compile(r'^&np([=<>]+)(\d+)$')

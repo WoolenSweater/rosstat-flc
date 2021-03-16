@@ -38,12 +38,15 @@ class FormatValidator(AbstractValidator):
     def _check_duplicates(self, report):
         '''Проверка дубликатов строк'''
         def __fmt_specs(specs):
-            return ' '.join(f's{i}={s}' for i, s in enumerate(specs, 1))
+            return ' '.join(f's{i}={s}' for i, s in enumerate(specs, 1) if s)
 
         for row, counter in report.row_counters.items():
             if counter > 1:
                 row_code, *specs = row
-                row = f'{row_code} {__fmt_specs(specs)}' if specs else row_code
+                if any(specs):
+                    row = f'{row_code} {__fmt_specs(specs)}'
+                else:
+                    row = row_code
                 raise DuplicateError(row, counter)
 
     def _check_required(self, report):

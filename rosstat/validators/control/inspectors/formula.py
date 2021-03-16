@@ -1,8 +1,7 @@
 from itertools import chain
 from collections import namedtuple
 from ..parser import parser
-from .exceptions import (ControlError, ConditionExprError,
-                         RuleExprError, PrevPeriodNotImpl)
+from ..exceptions import ConditionExprError, RuleExprError, PrevPeriodNotImpl
 
 
 ControlParams = namedtuple('ControlParams', ('is_rule',
@@ -25,7 +24,7 @@ class FormulaInspector:
         self.rule = control.attrib['rule'].strip()
         self.condition = control.attrib['condition'].strip()
 
-        self.tip = bool(int(control.attrib.get('tip', '1')))
+        self.tip = int(control.attrib.get('tip', '1'))
         self.fault = float(control.attrib.get('fault', '-1'))
         self.precision = int(control.attrib.get('precision', '2'))
 
@@ -35,12 +34,9 @@ class FormulaInspector:
                 'precision={precision}>').format(**self.__dict__)
 
     def check(self, report):
-        try:
-            if self._check_condition(report):
-                return self._check_rule(report)
-            return []
-        except ControlError as ex:
-            return [ex.msg]
+        if self._check_condition(report):
+            return self._check_rule(report)
+        return []
 
     def _check_condition(self, report):
         '''Проверка условия для выполнения контроля'''
@@ -69,7 +65,7 @@ class FormulaInspector:
         '''Парсинг формулы контроля'''
         evaluator = parser.parse(formula)
         if evaluator is None:
-            raise exc
+            raise exc(self.id)
         return evaluator
 
     def __check(self, report, evaluator, params):
@@ -86,4 +82,4 @@ class FormulaInspector:
             if self._skip_warns:
                 return True
             else:
-                raise PrevPeriodNotImpl()
+                raise PrevPeriodNotImpl(self.id)
