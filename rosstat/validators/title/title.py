@@ -56,10 +56,12 @@ class TitleValidator(AbstractValidator):
     def __check_okpo(self, field, value):
         '''Проверка формата ОКПО'''
         def __is_valid_okpo():
-            return True if len(value) in (8, 14) and value.isdigit() else False
+            if len(value) in (8, 10, 14) and value.isdigit():
+                return True
+            return False
 
         if field == self._schema.obj and not __is_valid_okpo():
-            self.error('Код ОКПО должен быть 8-и или 14-и значным числом', '4')
+            self.error('Код ОКПО должен быть длиной 8, 10 или 14 цифр', '4')
 
     def _check_required_fields(self):
         '''Проверка наличия ключевого поля в заголовке'''

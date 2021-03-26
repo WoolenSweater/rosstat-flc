@@ -27,6 +27,7 @@ class Elem:
         self.columns = set(columns)
 
         self._controls = []
+        self._func = None
 
         self.bool = True
         self.val = None if val is None else float(val)
@@ -67,11 +68,16 @@ class Elem:
     def controls(self):
         return self._controls
 
-    def control_fail(self, r_elem, op_name):
-        '''Добавление значений которые не прошли контроль и установка флага
-           указывающего на провал проверки
-        '''
-        self.bool = False
+    def controls_clear(self):
+        '''Очищение списка контролей'''
+        self._controls.clear()
+
+    def controls_extend(self, r_elem):
+        '''Расширение списка контролей, контролями из правого элемента'''
+        self._controls.extend(r_elem._controls)
+
+    def controls_append(self, r_elem, op_name):
+        '''Форматирование и добавление непройденного контроля'''
         self._controls.append({
             'left': self.val,
             'operator': op_name,
@@ -79,8 +85,17 @@ class Elem:
             'delta': round(self.val - r_elem.val, 2)
         })
 
-    def check(self, *args):
+    def check(self, report, params, ctx_elem):
+        if self._func:
+            return self._apply_func(report, params, *self._func)
         return [self]
+
+    def _apply_func(self, report, params, func, right_elem):
+        '''Выполнение функции на элементах массива'''
+        elems = []
+        for r_elem in right_elem.check(report, params, self):
+            elems.append(getattr(operator, func)(self, r_elem))
+        return elems
 
     def isnull(self, replace):
         '''Замена None на replace. Так же снимает признак "заглушки"'''
@@ -100,6 +115,10 @@ class Elem:
     def floor(self):
         '''Выполнение функции floor над значением'''
         self.val = floor(self.val)
+
+    def add_func(self, func, arg):
+        '''Добавляем функцию элементу при парсинге'''
+        self._func = (func, arg)
 
 
 class ElemList:
@@ -326,23 +345,27 @@ class ElemLogic(ElemList):
             self.elems.append(l_elem)
 
     def __get_result(self, l_elem, r_elem, *, success):
-        '''Обработка результата. При неуспешной проверке, формируется ошибка
-           и к списку контролей левого элемента добавляются сообщения об
-           ошибках из правого. При успешной проверке, сообщения из правого
-           элемента добавляются только если это не проверка логическкого "or"
+        '''Обработка результата. При проверке логического "or", если левый
+           элемент уже содержит ошибки, затираем их, инчае затираем список
+           контролей правого. При неуспешной проверке, формируется ошибка
+           которая прибавляется к списку контролей левого элемента.
+           Затем в левый элемент сливаются все ошибки из списка правого.
         '''
+        if self.op_name == 'or':
+            if l_elem.controls:
+                l_elem.controls_clear()
+            else:
+                r_elem.controls_clear()
+
         if not success:
-            l_elem.control_fail(r_elem, self.op_name)
-            l_elem.controls.extend(r_elem.controls)
-        elif not self.op_name == 'or':
-            l_elem.controls.extend(r_elem.controls)
+            l_elem.controls_append(r_elem, self.op_name)
+        l_elem.controls_extend(r_elem)
 
     def __logic_control(self, l_elem, r_elem, attrib):
         '''Получение значений и проведение проверки'''
         l_elem_v, r_elem_v = self.__get_elem_values(l_elem, r_elem, attrib)
         if not self.op_func(l_elem_v, r_elem_v):
-            if not self.__check_fault(l_elem.val, r_elem.val):
-                return False
+            return self.__check_fault(l_elem.val, r_elem.val)
         return True
 
     def __get_elem_values(self, l_elem, r_elem, attrib):
