@@ -1,4 +1,4 @@
-from re import IGNORECASE
+from re import IGNORECASE, DOTALL
 import ply.lex as lex
 from ply.lex import TOKEN
 
@@ -19,7 +19,7 @@ t_ELEM_START = r'{?{'
 t_ELEM_END = r'}?}'
 
 t_LOGIC = r'and|or'
-t_COMP = r'\|<\||\|<=\||\|=\||\|>=\||\|>\||\|<>\|'
+t_COMP = r'\| *(<|<=|=|>=|>|<>) *\|'
 
 t_SUM = r'SUM'
 t_ABS = r'abs'
@@ -38,7 +38,7 @@ def _range(rng):
 @TOKEN(r'\[.+?\]')
 def t_CODE(t):
     code = []
-    for i in t.value[1:-1].split(','):
+    for i in map(lambda i: i.strip(), t.value[1:-1].split(',')):
         if ('-' in i) and ('.' not in i):
             code.extend(_range(i))
         else:
@@ -63,4 +63,4 @@ def t_error(t):
     t.lexer.skip(1)
 
 
-lexer = lex.lex(reflags=IGNORECASE)
+lexer = lex.lex(reflags=IGNORECASE | DOTALL)

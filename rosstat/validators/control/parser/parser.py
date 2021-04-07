@@ -22,7 +22,7 @@ op_name = {
 def p_elem_logic(p):
     '''elem : elem COMP elem
             | elem LOGIC elem'''
-    p[0] = ElemLogic(p[1], p[2].strip('|'), p[3])
+    p[0] = ElemLogic(p[1], p[2].strip('| '), p[3])
 
 
 def p_elem_selector(p):

@@ -359,6 +359,7 @@ class ElemLogic(ElemList):
 
         if not success:
             l_elem.controls_append(r_elem, self.op_name)
+        l_elem.val = r_elem.val
         l_elem.controls_extend(r_elem)
 
     def __logic_control(self, l_elem, r_elem, attrib):

@@ -37,12 +37,15 @@ class PeriodInspector:
             raise PeriodExprError()
         return result
 
+    def _to_int(self, clause_parts):
+        return ','.join(str(int(n)) for n in clause_parts.split(','))
+
     def _check_in(self, report):
         '''Проверка на вхождение в список'''
         clause_parts = self._eval_regex(in_pattern, self.period_clause)
 
         clause = '{0} in ({1},)'.format(report.period_code,
-                                        clause_parts.group(1))
+                                        self._to_int(clause_parts.group(1)))
         return eval(clause)
 
     def _check_logic(self, report):
