@@ -27,8 +27,10 @@ class SpecInspector:
             self.__check_value_catalog_coord(row, spec_idx, specs_map)
 
     def __check_value_catalog_add(self, row, spec_idx):
-        '''Проверка на вхождение в справочник'''
-        if row.get_spec(spec_idx) not in self._catalogs[self.vld_param]['ids']:
+        '''Проверка на вхождение в пересечение справочников'''
+        main_catalog = set(self._catalogs[self.catalog]['ids'])
+        additional_catalog = set(self._catalogs[self.vld_param]['ids'])
+        if row.get_spec(spec_idx) not in additional_catalog & main_catalog:
             raise SpecNotInDictError()
 
     def __check_value_catalog_coord(self, row, spec_idx, specs_map):

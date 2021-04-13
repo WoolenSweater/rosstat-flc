@@ -1,8 +1,9 @@
 from math import gcd
-from typing import List, Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional
 from collections import defaultdict as defdict
 from dataclasses import dataclass, InitVar, field as f
 from lxml.etree import _ElementTree
+from .helpers import MultiDict
 from .schema import str_int
 
 
@@ -22,6 +23,9 @@ class Row:
     cols: Dict[str, str] = f(default_factory=dict)
     _blank: bool = True
 
+    _ignore_specs: Tuple[set] = f(default=({None}, {'*'}, {'0'}), repr=False)
+    _ignore_report_specs: Tuple[str] = f(default=('XX',), repr=False)
+
     @property
     def blank(self):
         '''Флаг указывающий, что строка пустая'''
@@ -29,7 +33,7 @@ class Row:
 
     def items(self, codes=None):
         '''Итерация по элементам строки'''
-        codes = codes or self.cols.keys()
+        codes = codes or iter(self.cols)
         for col_code in codes:
             yield col_code, self.get_col(col_code)
 
@@ -46,44 +50,35 @@ class Row:
         '''Возвращает специфику по её "индексу"'''
         return getattr(self, f's{idx}')
 
-
-@dataclass
-class Section:
-    code: str
-    rows: List[Row] = f(default_factory=list)
-    row_codes: List[str] = f(default_factory=list)
-
-    _ignore_specs: Tuple[set] = f(default=({None}, {'*'}, {'0'}), repr=False)
-    _ignore_report_specs: Tuple[str] = f(default=('XX',), repr=False)
-
-    def items(self, codes=None, specs=None):
-        '''Итерация по элементам раздела'''
-        codes = codes or sorted(set(self.row_codes), key=int)
-        for row_code in codes:
-            yield row_code, list(self.get_rows(row_code, specs=specs))
-
-    def get_rows(self, code, specs=None):
-        '''Возвращает строки с указанным кодом и спецификами'''
-        for row_code, row in zip(self.row_codes, self.rows):
-            if row_code == code and self._check_specs(row, specs):
-                yield row
-
-    def _check_specs(self, row, specs):
+    def filter(self, specs):
         '''Проверка, входит ли строка в список переданных специфик'''
-        if specs is None:
-            return True
         for i in range(1, 4):
-            row_spec = getattr(row, f's{i}')
+            row_spec = self.get_spec(i)
             if row_spec in self._ignore_report_specs:
                 return True
             if specs[i] not in self._ignore_specs and row_spec not in specs[i]:
                 return False
         return True
 
+
+@dataclass
+class Section:
+    code: str
+    rows: MultiDict = f(default_factory=MultiDict)
+
+    def items(self, codes=None):
+        '''Итерация по элементам раздела'''
+        codes = codes or iter(self.rows)
+        for row_code in codes:
+            yield row_code, self.get_rows(row_code)
+
+    def get_rows(self, code):
+        '''Возвращает строки с указанным кодом или пустую "заглушку"'''
+        return self.rows.getall(code) or [Row(code, None, None, None)]
+
     def add_row(self, row_code, row):
         '''Добавление строки в раздел'''
-        self.row_codes.append(row_code)
-        self.rows.append(row)
+        self.rows.add(row_code, row)
 
 
 @dataclass

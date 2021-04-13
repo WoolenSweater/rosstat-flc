@@ -3,6 +3,7 @@ from math import floor
 from copy import deepcopy
 from itertools import chain
 from functools import reduce
+from ..exceptions import NoElemToCompareError
 
 operator_map = {
     '<': operator.lt,
@@ -191,29 +192,26 @@ class ElemList:
         '''Чтение отчёта и конвертация его в массивы элементов'''
         raw_sec = report.get_section(self.section)
         for row_code, raw_rows in self._read_rows(raw_sec):
-            if not raw_rows:
-                self.elems.append(self._proc_row_empty(row_code, dimension))
-                continue
-            for raw_row in raw_rows:
+            for raw_row in self._filter_rows(raw_rows):
                 self.elems.append(self._proc_row(raw_row, row_code, dimension))
 
     def _read_rows(self, raw_sec):
         '''Читаем строки'''
         if self.rows == {'*'}:
-            return raw_sec.items(specs=self.specs)
-        return raw_sec.items(codes=self.rows, specs=self.specs)
+            return raw_sec.items()
+        return raw_sec.items(codes=self.rows)
+
+    def _filter_rows(self, raw_rows):
+        '''Фильтруем строки на соответствие спецификам'''
+        for row in raw_rows:
+            if row.filter(self.specs):
+                yield row
 
     def _read_columns(self, raw_row, dimension):
-        '''Читаем графы если строка не пустая'''
+        '''Читаем графы'''
         if self.columns == {'*'}:
             return raw_row.items(codes=dimension[self.section])
         return raw_row.items(codes=self.columns)
-
-    def _read_columns_empty(self, dimension):
-        '''Читаем графы если строка пустая'''
-        if self.columns == {'*'}:
-            return iter(dimension[self.section])
-        return iter(self.columns)
 
     def _proc_row(self, raw_row, row_code, dimension):
         '''Заполняем строку элементами со значениями из отчета, отсутствующие
@@ -222,13 +220,6 @@ class ElemList:
         row = []
         for col_code, value in self._read_columns(raw_row, dimension):
             row.append(Elem(value or 0, self.section, [row_code], [col_code]))
-        return row
-
-    def _proc_row_empty(self, row_code, dimension):
-        '''Заполняем строку элементами заглушками'''
-        row = []
-        for col_code in self._read_columns_empty(dimension):
-            row.append(Elem(0, self.section, [row_code], [col_code]))
         return row
 
     def _apply_funcs(self, report, params, ctx_elem):
@@ -272,25 +263,37 @@ class ElemList:
         left_operand = self._flatten_elems()
         right_operand = elem.check(report, params, self)
 
-        operand_pairs = self._zip(left_operand, right_operand)
         self.elems.clear()
-        for l_elem, r_elem in operand_pairs:
+        for l_elem, r_elem in zip(left_operand, right_operand):
             self.elems.append([getattr(operator, func)(l_elem, r_elem)])
 
-    def _zip(self, *lists):
-        '''Сбираем массивы в список кортежей. Если длина массивов различается
-           и самый короткий длиной в 1 элемент, заменяем его на массив равной
-           длины с полными копиями этого элемента
-           (Предполагается, что только 1 массив может быть короче других и
-           его длина всегда равна 1, но проверку на всякий случай оставил)
-           [1, 2], [3], [4, 5] > [1, 2], [3, 3], [4, 5] > [1, 3, 4], [2, 3, 5]
+    def _zip(self, l_list, r_list):
+        '''Сбираем списки в список кортежей. Если короткий список пустой,
+           создаём "нулевой" элемент. Добиваем длину короткого списка
+           до длины длинного если они различаются.
+           [1, 2, 3], [4] > [1, 2, 3], [4, 4, 4] > [1, 4], [2, 4], [3, 4]
         '''
-        smallest, *_, biggest = sorted(lists, key=len)
-        if len(smallest) != len(biggest) and len(smallest) == 1:
-            lists = list(lists)
-            s_idx, s_elem = lists.index(smallest), smallest[0]
-            lists[s_idx] = [deepcopy(s_elem) for _ in range(len(biggest))]
+        lists = [l_list, r_list]
+        if len(l_list) != len(r_list):
+            short_list, long_list = self.__order_lists(l_list, r_list)
+            short_list_index = self.__get_short_list_index(lists, short_list)
+            lists[short_list_index] = self.__generate_short_list(short_list,
+                                                                 long_list)
         return zip(*lists)
+
+    def __order_lists(self, l_list, r_list):
+        '''Упорядочивание двух списков от меньшего к большему'''
+        if len(l_list) < len(r_list):
+            return l_list, r_list
+        return r_list, l_list
+
+    def __get_short_list_index(self, lists, short_list):
+        '''Возвращаем индекс короткого списка'''
+        return lists.index(short_list)
+
+    def __generate_short_list(self, short_list, long_list):
+        '''Генерация списка, который заёмет место короткого'''
+        return [deepcopy(short_list[0]) for _ in range(len(long_list))]
 
     def _flatten_elems(self):
         '''Возвращаем плоский массив элементов'''
@@ -326,9 +329,13 @@ class ElemLogic(ElemList):
         '''Подготовка элементов, слияние, передача в метод контроля'''
         l_elems = self.l_elem.check(report, self.params, self.r_elem)
         r_elems = self.r_elem.check(report, self.params, self.l_elem)
-        elems_pairs = self._zip(l_elems, r_elems)
 
-        self.__control(elems_pairs)
+        self.__check_elems(l_elems, r_elems)
+        self.__control(self._zip(l_elems, r_elems))
+
+    def __check_elems(self, *elems):
+        if not all(elems):
+            raise NoElemToCompareError()
 
     def __control(self, elems_pairs):
         '''Определение аттрибута контроля. Итерация по парам элементов,

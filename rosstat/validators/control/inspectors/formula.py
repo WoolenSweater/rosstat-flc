@@ -1,7 +1,8 @@
 from itertools import chain
 from collections import namedtuple
 from ..parser import parser
-from ..exceptions import ConditionExprError, RuleExprError, PrevPeriodNotImpl
+from ..exceptions import (ConditionExprError, RuleExprError, PrevPeriodNotImpl,
+                          NoElemToCompareError)
 
 
 ControlParams = namedtuple('ControlParams', ('is_rule',
@@ -10,6 +11,15 @@ ControlParams = namedtuple('ControlParams', ('is_rule',
                                              'dimension',
                                              'precision',
                                              'fault'))
+
+
+def wrap_exc(f):
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except NoElemToCompareError:
+            return []
+    return wrapper
 
 
 class FormulaInspector:
@@ -38,6 +48,7 @@ class FormulaInspector:
             return self._check_rule(report)
         return []
 
+    @wrap_exc
     def _check_condition(self, report):
         '''Проверка условия для выполнения контроля'''
         if self.condition and not self._is_previous_period(self.condition):
@@ -45,6 +56,7 @@ class FormulaInspector:
             return not list(self.__check(report, evaluator, self.__params()))
         return True
 
+    @wrap_exc
     def _check_rule(self, report):
         '''Проверка правила контроля'''
         if self.rule and not self._is_previous_period(self.rule):

@@ -14,6 +14,10 @@ class RuleExprError(ControlError):
     '''Ошибка разбора правила контроля'''
 
 
+class NoElemToCompareError(ControlError):
+    '''Нет элемента для сравнения'''
+
+
 class PrevPeriodNotImpl(ControlError):
     def __init__(self, id):
         self.id = id

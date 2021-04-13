@@ -13,7 +13,10 @@ class SchemaFormats(dict):
            определяющий формат проверок для специфики с указанным кодом
         '''
         spec_code = self._get_spec_code(sec_code, str(spec_idx))
-        return self[sec_code][row_code][spec_code]
+        try:
+            return self[sec_code][row_code][spec_code]
+        except KeyError:
+            return {}
 
 
 class NestedDefaultdict(dict):
@@ -29,3 +32,23 @@ class NestedDefaultdict(dict):
         except KeyError:
             self[key] = defaultdict(self.default_factory)
             return self[key]
+
+
+class MultiDict:
+    def __init__(self):
+        self.keys = []
+        self.values = []
+
+    def __iter__(self):
+        return iter(sorted(set(self.keys), key=int))
+
+    def add(self, key, value):
+        self.keys.append(key)
+        self.values.append(value)
+
+    def getall(self, key):
+        values = []
+        for k, v in zip(self.keys, self.values):
+            if k == key:
+                values.append(v)
+        return values
