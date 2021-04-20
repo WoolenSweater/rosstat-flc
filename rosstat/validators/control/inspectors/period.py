@@ -3,6 +3,7 @@ from ..exceptions import PeriodExprError
 
 in_pattern = re.compile(r'^\(&npin\(([\d,]+)\)\)$')
 cp_pattern = re.compile(r'^&np([=<>]+)(\d+)$')
+equality_map = {'=': '==', '<>': '!='}
 
 
 class PeriodInspector:
@@ -57,7 +58,7 @@ class PeriodInspector:
                 continue
 
             op, num = self._eval_regex(cp_pattern, cluase_part).group(1, 2)
-            op = '==' if op == '=' else op
+            op = equality_map.get(op, op)
             clause_parts.append(f'{report.period_code} {op} {num}')
 
         clause = ' '.join(clause_parts)

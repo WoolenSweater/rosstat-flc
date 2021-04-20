@@ -31,7 +31,7 @@ class Elem:
         self._func = None
 
         self.bool = True
-        self.val = None if val is None else float(val)
+        self.val = self.__to_float(val)
 
     def __add__(self, elem):
         return self.__modify(elem, operator.add)
@@ -55,6 +55,12 @@ class Elem:
             sorted(int(i) for i in self.rows if i.isdigit()),
             sorted(int(i) for i in self.columns if i.isdigit()),
             self.val, self.bool)
+
+    def __to_float(self, val):
+        try:
+            return float(val)
+        except ValueError:
+            return None
 
     def __modify(self, elem, op_func):
         self.rows |= elem.rows
