@@ -1,8 +1,8 @@
 import operator
-from math import floor
 from copy import deepcopy
 from itertools import chain
 from functools import reduce
+from .value import nullablefloat
 from ..exceptions import NoElemToCompareError
 
 operator_map = {
@@ -31,7 +31,7 @@ class Elem:
         self._func = None
 
         self.bool = True
-        self.val = self.__to_float(val)
+        self.val = nullablefloat(val)
 
     def __add__(self, elem):
         return self.__modify(elem, operator.add)
@@ -46,7 +46,7 @@ class Elem:
         return self.__modify(elem, operator.truediv)
 
     def __neg__(self):
-        self.val = -self.val
+        self.val = self.val.neg()
         return self
 
     def __repr__(self):
@@ -55,12 +55,6 @@ class Elem:
             sorted(int(i) for i in self.rows if i.isdigit()),
             sorted(int(i) for i in self.columns if i.isdigit()),
             self.val, self.bool)
-
-    def __to_float(self, val):
-        try:
-            return float(val)
-        except ValueError:
-            return None
 
     def __modify(self, elem, op_func):
         self.rows |= elem.rows
@@ -105,23 +99,24 @@ class Elem:
         return elems
 
     def isnull(self, replace):
-        '''Замена None на replace. Так же снимает признак "заглушки"'''
-        self.val = float(replace) if self.val is None else self.val
+        '''Замена "нулёвого" значения на replace'''
+        if self.val.is_null:
+            self.val = nullablefloat(replace)
 
     def round(self, ndig, trunc=0):
         '''Округление/отсечение до ndig знаков'''
         if trunc > 0:
-            self.val = float(f'{self.val:.{abs(ndig)}f}')
+            self.val = self.val.truncate(ndig)
         else:
-            self.val = round(self.val, ndig)
+            self.val = self.val.round(ndig)
 
     def abs(self):
         '''Выполнение функции abs над значением'''
-        self.val = abs(self.val)
+        self.val = self.val.abs()
 
     def floor(self):
         '''Выполнение функции floor над значением'''
-        self.val = floor(self.val)
+        self.val = self.val.floor()
 
     def add_func(self, func, arg):
         '''Добавляем функцию элементу при парсинге'''
@@ -225,7 +220,7 @@ class ElemList:
         '''
         row = []
         for col_code, value in self._read_columns(raw_row, dimension):
-            row.append(Elem(value or 0, self.section, [row_code], [col_code]))
+            row.append(Elem(value, self.section, [row_code], [col_code]))
         return row
 
     def _apply_funcs(self, report, params, ctx_elem):
@@ -247,7 +242,7 @@ class ElemList:
         elif self.rows == ctx_elem.rows:      # граф в каждой строке
             self.elems = [[reduce(operator.add, l)] for l in self.elems]
         elif not self.elems:                  # всех ячеек (секция пустая)
-            self.elems = [[Elem(0, self.section, '*', '*')]]
+            self.elems = [[Elem(None, self.section, '*', '*')]]
         else:                                 # всех ячеек (секция не пустая)
             self.elems = [[reduce(operator.add, chain(*self.elems))]]
 
@@ -423,7 +418,7 @@ class ElemSelector(ElemList):
         '''
         for l_elem, r_elem in elems_results:
             if l_elem.val == r_elem.val:
-                self.elems.append([Elem(0)])
+                self.elems.append([Elem(None)])
             else:
                 self.elems.append([l_elem])
 
