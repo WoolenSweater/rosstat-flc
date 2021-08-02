@@ -3,8 +3,7 @@ from typing import Dict, Tuple, Optional
 from collections import defaultdict as defdict
 from dataclasses import dataclass, InitVar, field as f
 from lxml.etree import _ElementTree
-from .helpers import MultiDict
-from .schema import str_int
+from .helpers import MultiDict, str_int
 
 
 def max_divider(num, terms):
@@ -65,6 +64,11 @@ class Row:
 class Section:
     code: str
     rows: MultiDict = f(default_factory=MultiDict)
+    _row_counters: defdict = f(default_factory=lambda: defdict(int))
+
+    @property
+    def row_counters(self):
+        return self._row_counters
 
     def items(self, codes=None):
         '''Итерация по элементам раздела'''
@@ -77,8 +81,9 @@ class Section:
         return self.rows.getall(code) or [Row(code, None, None, None)]
 
     def add_row(self, row_code, row):
-        '''Добавление строки в раздел'''
+        '''Добавление строки в раздел и приращение счётчика'''
         self.rows.add(row_code, row)
+        self._row_counters[(row_code, row.s1, row.s2, row.s3)] += 1
 
 
 @dataclass
@@ -91,7 +96,6 @@ class Report:
     _period_raw: str = None
     _period_type: Optional[str] = None
     _period_code: Optional[str] = None
-    _row_counters: defdict = f(default_factory=lambda: defdict(int))
 
     def __repr__(self):
         return '<Report title={_title}\ndata={_data}>'.format(**self.__dict__)
@@ -122,10 +126,6 @@ class Report:
     @property
     def period_code(self):
         return self._period_code
-
-    @property
-    def row_counters(self):
-        return self._row_counters
 
     def items(self):
         '''Итерация по разделам отчёта'''
@@ -161,7 +161,6 @@ class Report:
                     row.add_col(col_code, col.text)
                     self._blank = False
                 section.add_row(row_code, row)
-                self._row_counters[(row_code, row.s1, row.s2, row.s3)] += 1
             data[section_code] = section
         return data
 

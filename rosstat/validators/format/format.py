@@ -40,14 +40,13 @@ class FormatValidator(AbstractValidator):
         def __fmt_specs(specs):
             return ' '.join(f's{i}={s}' for i, s in enumerate(specs, 1) if s)
 
-        for row, counter in report.row_counters.items():
-            if counter > 1:
-                row_code, *specs = row
-                if any(specs):
-                    row = f'{row_code} {__fmt_specs(specs)}'
-                else:
-                    row = row_code
-                raise DuplicateError(row, counter)
+        for sec_code, section in report.items():
+            for row, counter in section.row_counters.items():
+                if counter > 1:
+                    row_code, *specs = row
+                    if any(specs):
+                        row_code = f'{row_code} {__fmt_specs(specs)}'
+                    raise DuplicateError(sec_code, row_code, counter)
 
     def _check_required(self, report):
         '''Проверка наличия обязательных к заполнению строк и значений'''

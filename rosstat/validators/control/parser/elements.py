@@ -4,6 +4,7 @@ from itertools import chain
 from functools import reduce
 from .value import nullablefloat
 from ..exceptions import NoElemToCompareError
+from ....helpers import str_int
 
 operator_map = {
     '<': operator.lt,
@@ -51,10 +52,7 @@ class Elem:
 
     def __repr__(self):
         return ('<Elem {}{}{} value={} bool={}>').format(
-            sorted(int(i) for i in self.section),
-            sorted(int(i) for i in self.rows if i.isdigit()),
-            sorted(int(i) for i in self.columns if i.isdigit()),
-            self.val, self.bool)
+            self.section, self.rows, self.columns, self.val, self.bool)
 
     def __modify(self, elem, op_func):
         self.rows |= elem.rows
@@ -126,9 +124,9 @@ class Elem:
 class ElemList:
     def __init__(self, section, rows, columns,
                  s1=[None], s2=[None], s3=[None]):
-        self.section = section[0]
-        self.rows = set(rows)
-        self.columns = set(columns)
+        self.section = list(str_int(v) for v in section).pop()
+        self.rows = set(str_int(v) for v in rows)
+        self.columns = set(str_int(v) for v in columns)
 
         self.specs = {1: s1, 2: s2, 3: s3}
 
@@ -137,10 +135,7 @@ class ElemList:
 
     def __repr__(self):
         return '<ElemList [{}]{}{} funcs={} elems={}>'.format(
-            self.section,
-            sorted(int(i) for i in self.rows if i.isdigit()),
-            sorted(int(i) for i in self.columns if i.isdigit()),
-            self.funcs, self.elems)
+            self.section, self.rows, self.columns, self.funcs, self.elems)
 
     def __neg__(self):
         self._apply_unary('neg')
@@ -220,7 +215,7 @@ class ElemList:
         '''
         row = []
         for col_code, value in self._read_columns(raw_row, dimension):
-            row.append(Elem(value, self.section, [row_code], [col_code]))
+            row.append(Elem(value, self.section, row_code, col_code))
         return row
 
     def _apply_funcs(self, report, params, ctx_elem):

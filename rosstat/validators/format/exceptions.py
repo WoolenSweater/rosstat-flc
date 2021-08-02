@@ -12,9 +12,10 @@ class NoSectionReportError(FormatError):
 
 
 class DuplicateError(FormatError):
-    def __init__(self, row_code, counter):
+    def __init__(self, sec_code, row_code, counter):
         self.code = '2'
-        self.msg = 'Строка {} повторяется {} раз(а)'.format(row_code, counter)
+        self.msg = ('Раздел {}, cтрока {} повторяется {} раз(а)'
+                    .format(sec_code, row_code, counter))
 
 
 class EmptyRowError(FormatError):

@@ -1,12 +1,8 @@
 import traceback
 from collections import defaultdict
-from .helpers import SchemaFormats, NestedDefaultdict
+from .helpers import SchemaFormats, NestedDefaultdict, str_int
 from .validators import (AttrValidator, TitleValidator,
                          FormatValidator, ControlValidator)
-
-
-def str_int(v):
-    return str(int(v)) if v.isdigit() else v
 
 
 class Schema:

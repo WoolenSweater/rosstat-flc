@@ -1,6 +1,10 @@
 from collections import defaultdict
 
 
+def str_int(v):
+    return str(int(v)) if v.isdigit() else v
+
+
 class SchemaFormats(dict):
     def _get_spec_code(self, sec_code, spec_idx):
         '''Возвращает из указаной секции ключ специфики по её индексу'''
@@ -41,6 +45,9 @@ class MultiDict:
 
     def __iter__(self):
         return iter(sorted(set(self.keys), key=int))
+
+    def __repr__(self):
+        return '<MultiDict {}>'.format(list(zip(self.keys, self.values)))
 
     def add(self, key, value):
         self.keys.append(key)
