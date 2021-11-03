@@ -3,6 +3,7 @@ from copy import deepcopy
 from itertools import chain
 from functools import reduce
 from .value import nullablefloat
+from .specific import Specific
 from ..exceptions import NoElemToCompareError
 from ....helpers import str_int
 
@@ -51,8 +52,13 @@ class Elem:
         return self
 
     def __repr__(self):
-        return ('<Elem {}{}{} value={} bool={}>').format(
-            self.section, self.rows, self.columns, self.val, self.bool)
+        return '<Elem {}{}{} value={} bool={}>'.format(
+            list(self.section),
+            list(self.rows),
+            list(self.columns),
+            self.val,
+            self.bool
+        )
 
     def __modify(self, elem, op_func):
         self.rows |= elem.rows
@@ -128,14 +134,19 @@ class ElemList:
         self.rows = set(str_int(v) for v in rows)
         self.columns = set(str_int(v) for v in columns)
 
-        self.specs = {1: s1, 2: s2, 3: s3}
+        self.specs = {1: Specific(s1), 2: Specific(s2), 3: Specific(s3)}
 
         self.funcs = []
         self.elems = []
 
     def __repr__(self):
-        return '<ElemList [{}]{}{} funcs={} elems={}>'.format(
-            self.section, self.rows, self.columns, self.funcs, self.elems)
+        return "<ElemList ['{}']{}{} funcs={} elems={}>".format(
+            self.section,
+            list(self.rows),
+            list(self.columns),
+            self.funcs,
+            self.elems
+        )
 
     def __neg__(self):
         self._apply_unary('neg')
@@ -151,38 +162,24 @@ class ElemList:
         '''Подготовка специфик. Если список специфик не "пуст" и не содержит
            один только ключ "*", пытаемся "развернуть" его к простому списку.
            Другими словами, все диапазоны специфик привести к явному набору в
-           соответствии со справочником. Затем конвертируем всё в множество
+           соответствии со справочником
         '''
         for spec_idx in range(1, 4):
-            if self.specs[spec_idx] in ([None], ['*']):
-                self.specs[spec_idx] = set(self.specs[spec_idx])
-            else:
-                spec_list = self.__get_spec_list(formats, catalogs, spec_idx)
-                self.specs[spec_idx] = set(self.__expand_specs(spec_list,
-                                                               spec_idx))
+            if self.specs[spec_idx].need_expand():
+                spec_params = self.__get_spec_params(formats, spec_idx)
+                spec_list = self.__get_spec_list(catalogs, spec_params)
 
-    def __get_spec_list(self, formats, catalogs, spec_idx):
-        '''Определяем набор параметров для специфики указанной строки, раздела.
-           Выбираем список специфик по имени справочника из наборапараметров
-        '''
+                self.specs[spec_idx].params(spec_params)
+                self.specs[spec_idx].expand(spec_list)
+
+    def __get_spec_params(self, formats, spec_idx):
+        '''Определяем параметры для специфики указанной строки, раздела'''
         row_code = next(iter(self.rows))
-        params = formats.get_spec_params(self.section, row_code, spec_idx)
-        return catalogs.get(params.get('dic'), {}).get('ids', [])
+        return formats.get_spec_params(self.section, row_code, spec_idx)
 
-    def __expand_specs(self, spec_list, spec_idx):
-        '''Перебираем специфики. Простые специфики сразу возвращаем. Если
-           имеем диапазон, определяем индекс начальной и конечной специфик
-           из списка-справочника, итерируемся по определенному диапазону,
-           возвращая соответствующие специфики из списка-справочника
-        '''
-        for spec in self.specs[spec_idx]:
-            if '-' in spec:
-                start, end = spec.split('-')
-                for i in range(spec_list.index(start.strip()),
-                               spec_list.index(end.strip()) + 1):
-                    yield spec_list[i]
-            else:
-                yield spec
+    def __get_spec_list(self, catalogs, spec_params):
+        '''Выбираем список специфик по имени справочника из параметров'''
+        return catalogs.get(spec_params.get('dic'), {}).get('ids', [])
 
     def _read_data(self, report, dimension):
         '''Чтение отчёта и конвертация его в массивы элементов'''
@@ -232,13 +229,15 @@ class ElemList:
 
     def _apply_sum(self, ctx_elem):
         '''Суммирование строк и/или графов'''
-        if self.columns == ctx_elem.columns:  # строк в каждой графе
+        if isinstance(ctx_elem, ElemLogic):     # для случаев SUM{}|=|1|=|SUM{}
+            self.elems = [[reduce(operator.add, chain(*self.elems))]]
+        elif self.columns == ctx_elem.columns:  # строк в каждой графе
             self.elems = [[reduce(operator.add, l)] for l in zip(*self.elems)]
-        elif self.rows == ctx_elem.rows:      # граф в каждой строке
+        elif self.rows == ctx_elem.rows:        # граф в каждой строке
             self.elems = [[reduce(operator.add, l)] for l in self.elems]
-        elif not self.elems:                  # всех ячеек (секция пустая)
+        elif not self.elems:                    # всех ячеек (секция пустая)
             self.elems = [[Elem(None, self.section, '*', '*')]]
-        else:                                 # всех ячеек (секция не пустая)
+        else:                                   # всех ячеек (секция не пустая)
             self.elems = [[reduce(operator.add, chain(*self.elems))]]
 
     def _apply_unary(self, func):
@@ -313,7 +312,10 @@ class ElemLogic(ElemList):
 
     def __repr__(self):
         return '<ElemLogic left={} operator="{}" right={}>'.format(
-            self.l_elem, self.op_name, self.r_elem)
+            self.l_elem,
+            self.op_name,
+            self.r_elem
+        )
 
     def check(self, report, params, ctx_elem=None):
         '''Основной метод вызова проверки'''
@@ -391,7 +393,10 @@ class ElemSelector(ElemList):
 
     def __repr__(self):
         return '<ElemSelector action={} funcs={} elems={}>'.format(
-            self.action, self.funcs, self.elems)
+            self.action,
+            self.funcs,
+            self.elems
+        )
 
     def check(self, *args):
         self._select(args)

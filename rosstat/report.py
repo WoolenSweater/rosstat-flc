@@ -46,13 +46,13 @@ class Row:
         self._blank = False
 
     def get_spec(self, idx):
-        '''Возвращает специфику по её "индексу"'''
+        '''Возвращает специфику отчёта по её "индексу"'''
         return getattr(self, f's{idx}')
 
     def filter(self, specs):
         '''Проверка, входит ли строка в список переданных специфик'''
         for i in range(1, 4):
-            row_spec = self.get_spec(i)
+            row_spec = self.get_spec(i) or specs[i].default
             if row_spec in self._ignore_report_specs:
                 return True
             if specs[i] not in self._ignore_specs and row_spec not in specs[i]:
