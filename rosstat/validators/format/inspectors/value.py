@@ -11,6 +11,7 @@ class ValueInspector:
         self.format = params.get('format')
         self.vld_type = params.get('vldType')
         self.vld_param = params.get('vld')
+        self.default = params.get('default')
 
         self.format_funcs_map = {'N': self._is_num, 'C': self._is_chars}
 
@@ -18,7 +19,6 @@ class ValueInspector:
         return ('<ValueInspector format={format} vld_type={vld_type} '
                 'vld_param={vld_param}>').format(**self.__dict__)
 
-    @classmethod
     def _is_num(self, value, limits):
         '''Проверка длины целой и дробной частей числового значения поля'''
         try:
@@ -36,7 +36,6 @@ class ValueInspector:
         if not (i_part_len <= i_part_lim and f_part_len <= f_part_lim):
             raise ValueBadFormat()
 
-    @classmethod
     def _is_chars(self, value, limit):
         '''Проверка длины символьного значения поля'''
         if not len(value) <= int(limit):
@@ -44,8 +43,8 @@ class ValueInspector:
 
     def check(self, coords, value):
         try:
-            self.__check_format(value)
-            self.__check_value(value)
+            self.__check_format(value or self.default)
+            self.__check_value(value or self.default)
         except ValueBaseError as ex:
             ex.update(coords)
             raise

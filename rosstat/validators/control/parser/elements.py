@@ -56,7 +56,7 @@ class Elem:
             list(self.section),
             list(self.rows),
             list(self.columns),
-            self.val,
+            repr(self.val),
             self.bool
         )
 
@@ -175,7 +175,11 @@ class ElemList:
     def __get_spec_params(self, formats, spec_idx):
         '''Определяем параметры для специфики указанной строки, раздела'''
         row_code = next(iter(self.rows))
-        return formats.get_spec_params(self.section, row_code, spec_idx)
+        col_code = next(iter(self.columns))
+        return formats.get_spec_params(self.section,
+                                       row_code,
+                                       col_code,
+                                       spec_idx)
 
     def __get_spec_list(self, catalogs, spec_params):
         '''Выбираем список специфик по имени справочника из параметров'''
@@ -212,7 +216,7 @@ class ElemList:
         '''
         row = []
         for col_code, value in self._read_columns(raw_row, dimension):
-            row.append(Elem(value, self.section, row_code, col_code))
+            row.append(Elem(value, self.section, [row_code], [col_code]))
         return row
 
     def _apply_funcs(self, report, params, ctx_elem):

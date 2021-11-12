@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='rosstat-flc',
-    version='1.2.4',
+    version='1.2.5',
     packages=find_packages(),
     description='Tool for format-logistic control of reports sent to RosStat',
     long_description=open('README.md', 'r').read(),

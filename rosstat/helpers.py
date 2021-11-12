@@ -6,17 +6,18 @@ def str_int(v):
 
 
 class SchemaFormats(dict):
-    def _get_spec_code(self, sec_code, spec_idx):
+    def _get_spec_code(self, sec_code, col_code, spec_idx):
         '''Возвращает из указаной секции ключ специфики по её индексу'''
-        for code, idx in self[sec_code]['specs'].items():
+        for spec_code, idx in self[sec_code]['specs'].items():
             if idx == spec_idx:
-                return code
+                return spec_code
+        return col_code
 
-    def get_spec_params(self, sec_code, row_code, spec_idx):
+    def get_spec_params(self, sec_code, row_code, col_code, spec_idx):
         '''Возвращает для указанной секции и строки словарь параметров,
            определяющий формат проверок для специфики с указанным кодом
         '''
-        spec_code = self._get_spec_code(sec_code, str(spec_idx))
+        spec_code = self._get_spec_code(sec_code, col_code, str(spec_idx))
         try:
             return self[sec_code][row_code][spec_code]
         except KeyError:

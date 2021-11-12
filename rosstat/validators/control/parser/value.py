@@ -8,6 +8,9 @@ class Nullablefloat(float):
     def __init__(self, val, *, is_null=False):
         self.is_null = is_null
 
+    def __repr__(self):
+        return 'null' if self.is_null else super().__repr__()
+
     def neg(self):
         return type(self)(-self)
 
