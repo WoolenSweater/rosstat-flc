@@ -96,10 +96,10 @@ class Elem:
         return [self]
 
     def _apply_func(self, report, params, func, right_elem):
-        '''Выполнение функции на элементах массива'''
+        '''Выполнение функций на элементах массива'''
         elems = []
         for r_elem in right_elem.check(report, params, self):
-            elems.append(getattr(operator, func)(self, r_elem))
+            elems.append(getattr(operator, func)(deepcopy(self), r_elem))
         return elems
 
     def isnull(self, replace):
@@ -220,7 +220,7 @@ class ElemList:
         return row
 
     def _apply_funcs(self, report, params, ctx_elem):
-        '''Выполнение функций на эелементах массива'''
+        '''Выполнение функций на элементах массива'''
         for func, args in self.funcs:
             if func == 'sum':
                 self._apply_sum(ctx_elem)
@@ -310,15 +310,17 @@ class ElemLogic(ElemList):
         self.op_name = operator.lower()
         self.op_func = operator_map[self.op_name]
 
+        self.funcs = []
         self.elems = []
 
         self.params = None
 
     def __repr__(self):
-        return '<ElemLogic left={} operator="{}" right={}>'.format(
+        return '<ElemLogic left={} operator="{}" right={} funcs={}>'.format(
             self.l_elem,
             self.op_name,
-            self.r_elem
+            self.r_elem,
+            self.funcs
         )
 
     def check(self, report, params, ctx_elem=None):
@@ -333,11 +335,18 @@ class ElemLogic(ElemList):
         r_elems = self.r_elem.check(report, self.params, self.l_elem)
 
         self.__check_elems(l_elems, r_elems)
+        self.__apply_funcs(l_elems)
         self.__control(self._zip(l_elems, r_elems))
 
     def __check_elems(self, *elems):
         if not all(elems):
             raise NoElemToCompareError()
+
+    def __apply_funcs(self, elems):
+        '''Выполнение функций на элементах массива'''
+        for func, _ in self.funcs:
+            for elem in elems:
+                getattr(elem, func)()
 
     def __control(self, elems_pairs):
         '''Определение аттрибута контроля. Итерация по парам элементов,

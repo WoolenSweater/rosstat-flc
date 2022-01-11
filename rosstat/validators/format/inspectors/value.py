@@ -71,7 +71,7 @@ class ValueInspector:
     def __check_value_range(self, value):
         '''Проверка на вхождение в диапазон'''
         value = float(value)
-        start, end = (int(n) for n in self.vld_param.split('-'))
+        start, end = (float(n) for n in self.vld_param.split('-'))
         if not (value >= start and value <= end):
             raise ValueNotInRangeError()
 
