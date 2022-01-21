@@ -4,10 +4,10 @@ from itertools import chain
 from functools import reduce
 from .value import nullablefloat
 from .specific import Specific
-from ..exceptions import NoElemToCompareError
-from ....helpers import str_int
+from ..exceptions import NoElemToCompareError, NoFormatForRowError
+from ....helpers import SPEC_KEYS
 
-operator_map = {
+OPERATOR_MAP = {
     '<': operator.lt,
     '<=': operator.le,
     '=': operator.eq,
@@ -24,10 +24,10 @@ operator_map = {
 
 
 class Elem:
-    def __init__(self, val, section=[], rows=[], columns=[]):
-        self.section = set(section)
-        self.rows = set(rows)
-        self.columns = set(columns)
+    def __init__(self, val, section=None, rows=None, columns=None):
+        self.section = set() if section is None else {section}
+        self.rows = set() if rows is None else {rows}
+        self.columns = set() if columns is None else {columns}
 
         self._controls = []
         self._func = None
@@ -128,22 +128,25 @@ class Elem:
 
 
 class ElemList:
-    def __init__(self, section, rows, columns,
-                 s1=[None], s2=[None], s3=[None]):
-        self.section = list(str_int(v) for v in section).pop()
-        self.rows = set(str_int(v) for v in rows)
-        self.columns = set(str_int(v) for v in columns)
+    def __init__(self, sections, rows, columns, s1='*', s2='*', s3='*'):
+        self.sections = sections
+        self.rows = rows
+        self.columns = columns
 
-        self.specs = {1: Specific(s1), 2: Specific(s2), 3: Specific(s3)}
+        self.s1 = s1
+        self.s2 = s2
+        self.s3 = s3
 
+        self.specs = {}
         self.funcs = []
         self.elems = []
 
     def __repr__(self):
-        return "<ElemList ['{}']{}{} funcs={} elems={}>".format(
-            self.section,
-            list(self.rows),
-            list(self.columns),
+        return "<ElemList {}{}{} specs={} funcs={} elems={}>".format(
+            self.sections,
+            self.rows,
+            self.columns,
+            self.specs,
             self.funcs,
             self.elems
         )
@@ -153,71 +156,57 @@ class ElemList:
         return self
 
     def check(self, report, params, ctx_elem):
-        self._prepare_specs(params.formats, params.catalogs)
-        self._read_data(report, params.dimension)
+        self._read_data(report, params)
         self._apply_funcs(report, params, ctx_elem)
         return self._flatten_elems()
 
-    def _prepare_specs(self, formats, catalogs):
-        '''Подготовка специфик. Если список специфик не "пуст" и не содержит
-           один только ключ "*", пытаемся "развернуть" его к простому списку.
-           Другими словами, все диапазоны специфик привести к явному набору в
-           соответствии со справочником
-        '''
-        for spec_idx in range(1, 4):
-            if self.specs[spec_idx].need_expand():
-                spec_params = self.__get_spec_params(formats, spec_idx)
-                spec_list = self.__get_spec_list(catalogs, spec_params)
-
-                self.specs[spec_idx].params(spec_params)
-                self.specs[spec_idx].expand(spec_list)
-
-    def __get_spec_params(self, formats, spec_idx):
-        '''Определяем параметры для специфики указанной строки, раздела'''
-        row_code = next(iter(self.rows))
-        col_code = next(iter(self.columns))
-        return formats.get_spec_params(self.section,
-                                       row_code,
-                                       col_code,
-                                       spec_idx)
-
-    def __get_spec_list(self, catalogs, spec_params):
-        '''Выбираем список специфик по имени справочника из параметров'''
-        return catalogs.get(spec_params.get('dic'), {}).get('ids', [])
-
-    def _read_data(self, report, dimension):
+    def _read_data(self, report, params):
         '''Чтение отчёта и конвертация его в массивы элементов'''
-        raw_sec = report.get_section(self.section)
-        for row_code, raw_rows in self._read_rows(raw_sec):
-            for raw_row in self._filter_rows(raw_rows):
-                self.elems.append(self._proc_row(raw_row, row_code, dimension))
+        for section in self._read_sections(report):
+            for row in self._read_rows(params, section):
+                self.add_row(self._read_columns(params, section, row))
 
-    def _read_rows(self, raw_sec):
-        '''Читаем строки'''
-        if self.rows == {'*'}:
-            return raw_sec.items()
-        return raw_sec.items(codes=self.rows)
+    def _read_sections(self, report):
+        '''Получаем итератор по секциям'''
+        return report.iter(self.sections)
 
-    def _filter_rows(self, raw_rows):
-        '''Фильтруем строки на соответствие спецификам'''
-        for row in raw_rows:
-            if row.filter(self.specs):
+    def _read_rows(self, params, section):
+        '''Итерируемся по строкам и проверяем их на соответствие спецификам'''
+        for row in section.iter(self.rows):
+            if not params.formats.has(section.code, row.code):
+                raise NoFormatForRowError()
+            if row.match(self._get_specs(section.code, row.code, params)):
                 yield row
 
-    def _read_columns(self, raw_row, dimension):
-        '''Читаем графы'''
-        if self.columns == {'*'}:
-            return raw_row.items(codes=dimension[self.section])
-        return raw_row.items(codes=self.columns)
-
-    def _proc_row(self, raw_row, row_code, dimension):
-        '''Заполняем строку элементами со значениями из отчета, отсутствующие
-           значения замещаем заглушкой
+    def _get_specs(self, sec_code, row_code, params):
+        '''Подготавливаем и возвращаем специфики для строки,
+           либо возвращаем уже готовые
         '''
-        row = []
-        for col_code, value in self._read_columns(raw_row, dimension):
-            row.append(Elem(value, self.section, [row_code], [col_code]))
-        return row
+        if row_code not in self.specs:
+            self.specs[row_code] = list(self._prepare_specs(sec_code,
+                                                            row_code,
+                                                            params))
+        return self.specs[row_code]
+
+    def _prepare_specs(self, sec_code, row_code, params):
+        '''Подготавливаем специфики для строки. Создаём специфику и проверяем,
+           необходимо ли её "развернуть"
+        '''
+        for key in SPEC_KEYS:
+            spec = Specific(key, getattr(self, key))
+            if spec.need_expand():
+                spec.expand(sec_code, row_code, params)
+            yield spec
+
+    def _read_columns(self, params, section, row):
+        '''Читаем графы. Конвертируем их в элементы'''
+        dimension = self._get_dimension(section.code, params)
+        for col in row.iter(self.columns, dimension=dimension):
+            yield Elem(col.value, section.code, row.code, col.code)
+
+    def _get_dimension(self, sec_code, params):
+        '''Возвращаем "размерность" для секции" '''
+        return params.dimension[sec_code]
 
     def _apply_funcs(self, report, params, ctx_elem):
         '''Выполнение функций на элементах массива'''
@@ -240,7 +229,7 @@ class ElemList:
         elif self.rows == ctx_elem.rows:        # граф в каждой строке
             self.elems = [[reduce(operator.add, l)] for l in self.elems]
         elif not self.elems:                    # всех ячеек (секция пустая)
-            self.elems = [[Elem(None, self.section, '*', '*')]]
+            self.elems = [[Elem(None, self.sections[0], '*', '*')]]
         else:                                   # всех ячеек (секция не пустая)
             self.elems = [[reduce(operator.add, chain(*self.elems))]]
 
@@ -298,6 +287,9 @@ class ElemList:
         '''Возвращаем плоский массив элементов'''
         return list(chain(*self.elems))
 
+    def add_row(self, columns):
+        self.elems.append(list(columns))
+
     def add_func(self, func, *args):
         '''Добавляем функцию в "очередь" при парсинге'''
         self.funcs.append((func, args))
@@ -308,7 +300,7 @@ class ElemLogic(ElemList):
         self.l_elem = l_elem
         self.r_elem = r_elem
         self.op_name = operator.lower()
-        self.op_func = operator_map[self.op_name]
+        self.op_func = OPERATOR_MAP[self.op_name]
 
         self.funcs = []
         self.elems = []

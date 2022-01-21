@@ -1,9 +1,15 @@
 from math import gcd
-from typing import Dict, Tuple, Optional
-from collections import defaultdict as defdict
+from typing import Dict, List, Optional
+from collections import defaultdict as defdict, namedtuple
 from dataclasses import dataclass, InitVar, field as f
 from lxml.etree import _ElementTree
-from .helpers import MultiDict, str_int
+from .helpers import SPEC_KEYS, MultiDict, str_int
+
+IGNORE_SPECS = ({'*'}, {'XX'})
+IGNORE_REPORT_SPECS = {'0', None}
+
+Title = namedtuple('Title', ['name', 'value'])
+Column = namedtuple('Column', ['code', 'value'])
 
 
 def max_divider(num, terms):
@@ -13,85 +19,122 @@ def max_divider(num, terms):
     return num
 
 
+class CodeIterable:
+
+    def iter(self, codes=None):
+        '''Метод получения итератора по элементам'''
+        if codes is None or codes == ['*']:
+            return self._iter_all()
+        else:
+            return self._iter_codes(codes)
+
+
 @dataclass
 class Row:
     code: str
     s1: str
     s2: str
     s3: str
-    cols: Dict[str, str] = f(default_factory=dict)
-    _blank: bool = True
 
-    _ignore_specs: Tuple[set] = f(default=({None}, {'*'}, {'0'}), repr=False)
-    _ignore_report_specs: Tuple[str] = f(default=('XX',), repr=False)
+    _cols: Dict[str, Column] = f(default_factory=dict)
 
-    @property
-    def blank(self):
-        '''Флаг указывающий, что строка пустая'''
-        return self._blank
-
-    def items(self, codes=None):
-        '''Итерация по элементам строки'''
-        codes = codes or iter(self.cols)
-        for col_code in codes:
-            yield col_code, self.get_col(col_code)
-
-    def get_col(self, code):
-        '''Возвращает указанную колонку'''
-        return self.cols.get(code)
+    # ---
 
     def add_col(self, col_code, col_text):
         '''Добавление колонки в строку'''
-        self.cols[col_code] = col_text
-        self._blank = False
+        self._cols[col_code] = Column(col_code, col_text)
 
-    def get_spec(self, idx):
-        '''Возвращает специфику отчёта по её "индексу"'''
-        return getattr(self, f's{idx}')
+    # ---
 
-    def filter(self, specs):
+    def iter(self, codes=None, dimension=None):
+        '''Метод получения итератора по элементам'''
+        if codes is None and dimension is None:
+            return self._iter_all()
+        if codes is None or codes == ['*']:
+            return self._iter_codes(dimension)
+        else:
+            return self._iter_codes(codes)
+
+    def _iter_all(self):
+        '''Возвращает итератор по всем колонкам'''
+        return self._cols.values()
+
+    def _iter_codes(self, codes):
+        '''Итерируемся по кодам, возвращаем колонку либо "заглушку"'''
+        for code in codes:
+            yield self.get_column(code) or Column(code, None)
+
+    def get_column(self, code):
+        '''Возвращает колонку'''
+        return self._cols.get(code)
+
+    # ---
+
+    def match(self, specs):
         '''Проверка, входит ли строка в список переданных специфик'''
-        for i in range(1, 4):
-            row_spec = self.get_spec(i) or specs[i].default
-            if row_spec in self._ignore_report_specs:
+        for spec in specs:
+            row_spec = self.get_spec(spec.key) or spec.default
+            if row_spec in IGNORE_REPORT_SPECS:
                 return True
-            if specs[i] not in self._ignore_specs and row_spec not in specs[i]:
+            elif spec in IGNORE_SPECS:
+                return True
+            elif row_spec not in spec:
                 return False
         return True
 
+    def get_spec(self, key):
+        '''Возвращает указанную специфику строки или дефолтную'''
+        return getattr(self, key)
+
 
 @dataclass
-class Section:
+class Section(CodeIterable):
     code: str
-    rows: MultiDict = f(default_factory=MultiDict)
-    _row_counters: defdict = f(default_factory=lambda: defdict(int))
+
+    _rows: MultiDict = f(default_factory=MultiDict)
+    _rows_counter: defdict = f(default_factory=lambda: defdict(int))
 
     @property
-    def row_counters(self):
-        return self._row_counters
+    def rows(self):
+        return self._rows
 
-    def items(self, codes=None):
-        '''Итерация по элементам раздела'''
-        codes = codes or iter(self.rows)
-        for row_code in codes:
-            yield row_code, self.get_rows(row_code)
+    @property
+    def rows_counter(self):
+        return self._rows_counter
+
+    # ---
+
+    def add_row(self, row):
+        '''Добавление строки в раздел и приращение счётчика'''
+        self._rows.add(row.code, row)
+        self._rows_counter[(row.code, row.s1, row.s2, row.s3)] += 1
+
+    # ---
+
+    def _iter_all(self):
+        '''Возвращает итератор по всем строкам'''
+        return iter(self._rows.getall())
+
+    def _iter_codes(self, codes):
+        '''Итерируемся по кодам, получаем строки с указанным кодом,
+           если список строк не пуст, возвращаем каждую строку,
+           иначе строку "заглушку"
+        '''
+        for code in codes:
+            for row in (self.get_rows(code) or [Row(code, None, None, None)]):
+                yield row
 
     def get_rows(self, code):
-        '''Возвращает строки с указанным кодом или пустую "заглушку"'''
-        return self.rows.getall(code) or [Row(code, None, None, None)]
-
-    def add_row(self, row_code, row):
-        '''Добавление строки в раздел и приращение счётчика'''
-        self.rows.add(row_code, row)
-        self._row_counters[(row_code, row.s1, row.s2, row.s3)] += 1
+        '''Возвращает список строк"'''
+        return self._rows.get(code)
 
 
 @dataclass
-class Report:
+class Report(CodeIterable):
     xml: InitVar[_ElementTree]
     _blank: bool = True
     _year: str = None
-    _title: Dict[str, str] = None
+    _title: List[Title] = None
     _data: Dict[str, Section] = None
     _period_raw: str = None
     _period_type: Optional[str] = None
@@ -127,46 +170,60 @@ class Report:
     def period_code(self):
         return self._period_code
 
-    def items(self):
-        '''Итерация по разделам отчёта'''
-        for sec_code, section in self._data.items():
-            yield sec_code, section
+    # ---
 
-    def get_section(self, section_code):
-        '''Возвращает указанную секцию'''
-        return self._data.get(section_code)
+    def _iter_all(self):
+        '''Возвращает итератор по всем разделам'''
+        return self._data.values()
+
+    def _iter_codes(self, codes):
+        '''Итерируемся по кодам, возвращаем разделы'''
+        for code in codes:
+            yield self.get_section(code)
+
+    def get_section(self, code):
+        '''Возвращает раздел с указанным кодом'''
+        return self._data.get(code)
+
+    # ---
 
     def _read_title(self, xml):
-        '''Чтение заголовка отчёта'''
+        '''Чтение заголовков отчёта'''
         title = []
         for node in xml.xpath('/report/title/item'):
-            item = (node.attrib['name'], node.attrib.get('value', '').strip())
-            title.append(item)
+            title.append(Title(node.attrib.get('name'),
+                               node.attrib.get('value', '').strip()))
         return title
+
+    # ---
 
     def _read_data(self, xml):
         '''Чтение тела отчёта (разделы/строки/колонки)'''
         data = {}
         for section_xml in xml.xpath('/report/sections/section'):
-            section_code = str_int(section_xml.attrib['code'])
-            section = Section(section_code)
+            section = Section(self._get_code(section_xml))
 
             for row_xml in section_xml.xpath('./row'):
-                row_code = str_int(row_xml.attrib['code'])
-                row = Row(row_code, *self._read_row_specs(row_xml))
+                row = Row(self._get_code(row_xml), **self._read_specs(row_xml))
 
-                for col in row_xml.xpath('./col'):
-                    col_code = str_int(col.attrib['code'])
+                for col_xml in row_xml.xpath('./col'):
+                    row.add_col(self._get_code(col_xml), col_xml.text)
 
-                    row.add_col(col_code, col.text)
                     self._blank = False
-                section.add_row(row_code, row)
-            data[section_code] = section
+
+                section.add_row(row)
+            data[section.code] = section
         return data
 
-    def _read_row_specs(self, row):
+    def _get_code(self, xml):
+        '''Возвращает код элемента (раздела/строки/колонки)'''
+        return str_int(xml.attrib.get('code'))
+
+    def _read_specs(self, xml):
         '''Чтение спицифик строки'''
-        return (row.attrib.get(f's{i}') for i in range(1, 4))
+        return {spec_key: xml.attrib.get(spec_key) for spec_key in SPEC_KEYS}
+
+    # ---
 
     def _get_year(self, xml):
         '''Получение года из корня отчёта'''
@@ -178,6 +235,8 @@ class Report:
         if len(self._period_raw) == 4:
             self._period_type = str_int(self._period_raw[:2])
             self._period_code = str_int(self._period_raw[2:])
+
+    # ---
 
     def set_periods(self, catalogs, idp):
         '''Попытка привести тип и код периода к формату
