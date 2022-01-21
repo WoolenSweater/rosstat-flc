@@ -1,5 +1,6 @@
 class Specific:
-    def __init__(self, specs):
+    def __init__(self, key, specs):
+        self._key = key
         self._specs = set(specs)
         self._default = None
 
@@ -16,17 +17,33 @@ class Specific:
         return self._specs == other
 
     @property
+    def key(self):
+        return self._key
+
+    @property
     def default(self):
         return self._default
 
     def need_expand(self):
         return self._specs not in ({None}, {'*'})
 
-    def params(self, params):
-        self._default = params.get('default')
+    def expand(self, sec_code, row_code, params):
+        '''Основной метод подготовки спефик. Получение формата,
+           каталога и развертывание.
+        '''
+        formats = self.__get_spec_formats(params.formats, sec_code, row_code)
+        catalog = self.__get_spec_catalog(params.catalogs, formats)
 
-    def expand(self, dic):
-        self._specs = set(self._expand(dic))
+        self._default = formats.get('default')
+        self._specs = set(self._expand(catalog))
+
+    def __get_spec_formats(self, formats, sec_code, row_code):
+        '''Определяем параметры для специфики указанной строки, раздела'''
+        return formats.get_spec_params(sec_code, row_code, self.key)
+
+    def __get_spec_catalog(self, catalogs, params):
+        '''Выбираем список специфик по имени справочника из параметров'''
+        return catalogs.get(params.get('dic'), {}).get('ids', [])
 
     def _expand(self, dic):
         '''Перебираем специфики. Простые специфики сразу возвращаем. Если

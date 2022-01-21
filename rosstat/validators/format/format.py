@@ -29,7 +29,7 @@ class FormatValidator(AbstractValidator):
 
     def _check_sections(self, report):
         '''Проверка целостности отчёта'''
-        report_sections = set(code for code, _ in report.items())
+        report_sections = set(section.code for section in report.iter())
         schema_sections = set(self._schema.dimension.keys())
 
         for section in schema_sections - report_sections:
@@ -40,13 +40,13 @@ class FormatValidator(AbstractValidator):
         def __fmt_specs(specs):
             return ' '.join(f's{i}={s}' for i, s in enumerate(specs, 1) if s)
 
-        for sec_code, section in report.items():
-            for row, counter in section.row_counters.items():
+        for section in report.iter():
+            for row, counter in section.rows_counter.items():
                 if counter > 1:
                     row_code, *specs = row
                     if any(specs):
                         row_code = f'{row_code} {__fmt_specs(specs)}'
-                    raise DuplicateError(sec_code, row_code, counter)
+                    raise DuplicateError(section.code, row_code, counter)
 
     def _check_required(self, report):
         '''Проверка наличия обязательных к заполнению строк и значений'''
@@ -56,16 +56,15 @@ class FormatValidator(AbstractValidator):
                 raise EmptyRowError(sec_code, row_code)
 
             for row in rows:
-                if not row.get_col(col_code):
+                if not row.get_column(col_code):
                     raise EmptyColumnError(sec_code, row_code, col_code)
 
     def _check_format(self, report):
         '''Проверка формата строк и значений в них'''
-        for sec_code, section in report.items():
-            for row_code, rows in section.items():
-                for row in rows:
-                    self.__check_row(sec_code, row_code, row)
-                    self.__check_cells(sec_code, row_code, row)
+        for section in report.iter():
+            for row in section.iter():
+                self.__check_row(section.code, row.code, row)
+                self.__check_cells(section.code, row.code, row)
 
     def __check_row(self, sec_code, row_code, row):
         '''Итерация по ожидаемым спецификам с их последующей проверкой'''
@@ -76,9 +75,9 @@ class FormatValidator(AbstractValidator):
 
     def __check_cells(self, sec_code, row_code, row):
         '''Итерация по значениям строки с их последующей проверкой'''
-        for col_code, value in row.items():
-            self.__check_format((sec_code, row_code, col_code),
-                                ValueInspector, value)
+        for column in row.iter():
+            self.__check_format((sec_code, row_code, column.code),
+                                ValueInspector, column.value)
 
     def __check_format(self, coords, inspector_class, *args):
         '''Инициализация инспектора, проверка'''

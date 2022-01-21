@@ -74,7 +74,7 @@ class Schema:
             col_code = str_int(column.attrib['code'])
 
             if column.attrib['type'] == 'S':
-                specs[col_code] = column.attrib['fld'][-1]
+                specs[col_code] = column.attrib['fld']
             elif column.attrib['type'] == 'Z':
                 defaults[col_code] = self.__get_default_cell(column)
                 self.dimension[sec_code].append(col_code)

@@ -18,6 +18,10 @@ class NoElemToCompareError(ControlError):
     '''Нет элемента для сравнения'''
 
 
+class NoFormatForRowError(ControlError):
+    '''Нет формата для строки из формулы контроля'''
+
+
 class PrevPeriodNotImpl(ControlError):
     def __init__(self, id):
         self.id = id
