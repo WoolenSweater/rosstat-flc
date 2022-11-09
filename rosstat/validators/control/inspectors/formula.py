@@ -1,8 +1,12 @@
 from itertools import chain
 from collections import namedtuple
 from ..parser import parser
-from ..exceptions import (ConditionExprError, RuleExprError, PrevPeriodNotImpl,
-                          NoElemToCompareError, NoFormatForRowError)
+from ..exceptions import (
+    ConditionExprError,
+    RuleExprError,
+    PrevPeriodNotImpl,
+    EvaluationError
+)
 
 
 ControlParams = namedtuple('ControlParams', ('is_rule',
@@ -17,7 +21,7 @@ def wrap_exc(f):
     def wrapper(*args, **kwargs):
         try:
             return f(*args, **kwargs)
-        except (NoElemToCompareError, NoFormatForRowError):
+        except EvaluationError:
             return []
     return wrapper
 
