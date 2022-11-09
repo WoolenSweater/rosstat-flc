@@ -21,6 +21,10 @@ OPERATOR_MAP = {
     '*': operator.mul,
     '/': operator.truediv,
 }
+BOOL_TYPE = {
+    'and': 'bool',
+    'or': 'bool'
+}
 
 
 class Elem:
@@ -300,7 +304,8 @@ class ElemLogic(ElemList):
         self.l_elem = l_elem
         self.r_elem = r_elem
         self.op_name = operator.lower()
-        self.op_func = OPERATOR_MAP[self.op_name]
+        self.op_func = OPERATOR_MAP.get(self.op_name)
+        self.elem_type = BOOL_TYPE.get(self.op_name, 'val')
 
         self.funcs = []
         self.elems = []
@@ -344,10 +349,8 @@ class ElemLogic(ElemList):
         '''Определение аттрибута контроля. Итерация по парам элементов,
            выполнение проверок, обработка результата
         '''
-        attrib = 'bool' if self.op_name in ('and', 'or') else 'val'
-
         for l_elem, r_elem in elems_pairs:
-            if not self.__logic_control(l_elem, r_elem, attrib):
+            if not self.__logic_control(l_elem, r_elem):
                 self.__get_result(l_elem, r_elem, success=False)
             else:
                 self.__get_result(l_elem, r_elem, success=True)
@@ -372,22 +375,21 @@ class ElemLogic(ElemList):
         l_elem.val = r_elem.val
         l_elem.controls_extend(r_elem)
 
-    def __logic_control(self, l_elem, r_elem, attrib):
+    def __logic_control(self, l_elem, r_elem):
         '''Получение значений и проведение проверки'''
-        l_elem_v, r_elem_v = self.__get_elem_values(l_elem, r_elem, attrib)
-        if not self.op_func(l_elem_v, r_elem_v):
-            return self.__check_fault(l_elem.val, r_elem.val)
+        if not self.op_func(*self.__get_elem_values(l_elem, r_elem)):
+            return self.__check_fault(l_elem, r_elem)
         return True
 
-    def __get_elem_values(self, l_elem, r_elem, attrib):
+    def __get_elem_values(self, l_elem, r_elem):
         '''Округление и возвращение значений которые будут сравниваться'''
         l_elem.round(self.params.precision)
         r_elem.round(self.params.precision)
-        return getattr(l_elem, attrib), getattr(r_elem, attrib)
+        return getattr(l_elem, self.elem_type), getattr(r_elem, self.elem_type)
 
-    def __check_fault(self, l_elem_v, r_elem_v):
+    def __check_fault(self, l_elem, r_elem):
         '''Проверка погрешности'''
-        return abs(l_elem_v - r_elem_v) <= self.params.fault
+        return abs(l_elem.val - r_elem.val) <= self.params.fault
 
 
 class ElemSelector(ElemList):
