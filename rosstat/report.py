@@ -1,12 +1,11 @@
 from math import gcd
 from typing import Dict, List, Optional
-from collections import defaultdict as defdict, namedtuple
+from collections import defaultdict, namedtuple
 from dataclasses import dataclass, InitVar, field as f
 from lxml.etree import _ElementTree
 from .helpers import SPEC_KEYS, MultiDict, str_int
 
-IGNORE_SPECS = ({'*'}, {'XX'})
-IGNORE_REPORT_SPECS = {'0', None}
+ANY_SPEC = {'*'}
 
 Title = namedtuple('Title', ['name', 'value'])
 Column = namedtuple('Column', ['code', 'value'])
@@ -74,9 +73,7 @@ class Row:
         '''Проверка, входит ли строка в список переданных специфик'''
         for spec in specs:
             row_spec = self.get_spec(spec.key) or spec.default
-            if row_spec in IGNORE_REPORT_SPECS:
-                return True
-            elif spec in IGNORE_SPECS:
+            if spec == ANY_SPEC:
                 return True
             elif row_spec not in spec:
                 return False
@@ -92,7 +89,7 @@ class Section(CodeIterable):
     code: str
 
     _rows: MultiDict = f(default_factory=MultiDict)
-    _rows_counter: defdict = f(default_factory=lambda: defdict(int))
+    _rows_counter: defaultdict = f(default_factory=lambda: defaultdict(int))
 
     @property
     def rows(self):
