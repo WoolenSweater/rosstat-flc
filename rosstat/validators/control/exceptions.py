@@ -14,15 +14,15 @@ class RuleExprError(ControlError):
     '''Ошибка разбора правила контроля'''
 
 
-class EvaluationError(ControlError):
-    '''Ошибка проверки контроля'''
+class StopEvaluation(ControlError):
+    '''Прерывание проверки контроля'''
 
 
-class NoElemToCompareError(EvaluationError):
+class NoElemToCompareError(StopEvaluation):
     '''Нет элемента для сравнения'''
 
 
-class NoFormatForRowError(EvaluationError):
+class NoFormatForRowError(StopEvaluation):
     '''Нет формата для строки из формулы контроля'''
 
 

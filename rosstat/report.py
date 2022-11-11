@@ -11,6 +11,15 @@ Title = namedtuple('Title', ['name', 'value'])
 Column = namedtuple('Column', ['code', 'value'])
 
 
+class EmptyIter:
+
+    def iter(self, *args):
+        return []
+
+
+EMPTY_ITER = EmptyIter()
+
+
 def max_divider(num, terms):
     '''НОД для списка чисел'''
     for term_id in terms:
@@ -180,7 +189,7 @@ class Report(CodeIterable):
 
     def get_section(self, code):
         '''Возвращает раздел с указанным кодом'''
-        return self._data.get(code)
+        return self._data.get(code, EMPTY_ITER)
 
     # ---
 

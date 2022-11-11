@@ -1,33 +1,15 @@
 from re import IGNORECASE, DOTALL
 import ply.lex as lex
-from ply.lex import TOKEN
 
-tokens = ('COMMA', 'PLUS', 'MINUS', 'MULTIPLY', 'DIVIDE', 'LPAREN', 'RPAREN',
-          'ELEM_START', 'ELEM_END', 'CODE', 'SUM', 'ABS', 'FLOOR', 'ROUND',
-          'ISNULL', 'NULLIF', 'COALESCE', 'LOGIC', 'NUM', 'COMP')
+reserved = ['SUM', 'ABS', 'FLOOR', 'ROUND', 'ISNULL', 'NULLIF', 'COALESCE']
+literals = [',', '+', '-', '/', '*', '(', ')', '{', '}']
+tokens = ['CODE', 'LOGIC', 'NUM', 'COMP'] + reserved
 
-t_ignore = ' \r\t\f'
+reserved_map = {r.lower(): r for r in reserved}
 
-t_COMMA = r','
-t_PLUS = r'\+'
-t_MINUS = r'-'
-t_DIVIDE = r'/'
-t_MULTIPLY = r'\*'
-t_LPAREN = r'\('
-t_RPAREN = r'\)'
-t_ELEM_START = r'{?{'
-t_ELEM_END = r'}?}'
+t_ignore = ' |\r\t\f'
 
-t_LOGIC = r'and|or'
-t_COMP = r'\| *(<|<=|=|>=|>|<>) *\|'
-
-t_SUM = r'SUM'
-t_ABS = r'abs'
-t_FLOOR = r'floor'
-t_ROUND = r'round'
-t_ISNULL = r'isnull'
-t_NULLIF = r'nullif'
-t_COALESCE = r'coalesce'
+t_COMP = r'[><=]{1,2}'
 
 
 def _range(rng):
@@ -35,8 +17,8 @@ def _range(rng):
     return (str(i) for i in range(int(start), int(end) + 1))
 
 
-@TOKEN(r'\[.+?\]')
 def t_CODE(t):
+    r'\[.+?\]'
     code = []
     for i in map(lambda i: i.strip(), t.value[1:-1].split(',')):
         if ('-' in i) and ('.' not in i):
@@ -47,19 +29,26 @@ def t_CODE(t):
     return t
 
 
-@TOKEN(r'\d+(\.\d+)?')
 def t_NUM(t):
+    r'\d+(\.\d+)?'
     t.value = float(t.value)
     return t
 
 
-@TOKEN(r'\n+')
+def t_WORD(t):
+    r'\w+'
+    t.value = t.value.lower()
+    t.type = reserved_map.get(t.value, 'LOGIC')
+    return t
+
+
 def t_newline(t):
+    r'\n+'
     t.lexer.lineno += len(t.value)
 
 
 def t_error(t):
-    print("Illegal character '%s'" % t.value[0])
+    print(f"Illegal character '{t.value[0]}'")
     t.lexer.skip(1)
 
 

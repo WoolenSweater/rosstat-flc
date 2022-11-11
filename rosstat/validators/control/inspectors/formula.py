@@ -5,7 +5,7 @@ from ..exceptions import (
     ConditionExprError,
     RuleExprError,
     PrevPeriodNotImpl,
-    EvaluationError
+    StopEvaluation
 )
 
 
@@ -21,7 +21,7 @@ def wrap_exc(f):
     def wrapper(*args, **kwargs):
         try:
             return f(*args, **kwargs)
-        except EvaluationError:
+        except StopEvaluation:
             return []
     return wrapper
 
