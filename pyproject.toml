@@ -1,0 +1,58 @@
+[tool.poetry]
+name = "rosstat-flc"
+version = "2.0.0a0"
+description = "Tool for format-logistic control of reports sent to RosStat"
+authors = ["Никита Рябинин <ryabinin.ne@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "rosstat"}]
+repository = "https://github.com/WoolenSweater/rosstat-flc"
+keywords = [
+    "flc",
+    "tool",
+    "control",
+    "processing",
+    "report",
+    "rosstat",
+    "fsgs",
+    "format",
+    "format-logistic",
+    "russian-specific",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Russian",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+lxml = "^5.2.2"
+ply = {git = "https://github.com/dabeaz/ply"}
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.2"
+ruff = "^0.5.4"
+
+[tool.black]
+line-length = 79
+
+[tool.ruff]
+line-length = 79
+fix = true
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
