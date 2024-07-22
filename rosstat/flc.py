@@ -1,6 +1,8 @@
+from io import BufferedIOBase, BytesIO
 from os.path import isfile
-from io import BytesIO, BufferedIOBase
+
 from lxml import etree
+
 from .report import Report
 from .schema import Schema
 
@@ -15,8 +17,10 @@ def _get_xml_etree(source):
     elif isinstance(source, BufferedIOBase):
         return etree.parse(source)
 
-    raise TypeError(f'Expected ElementTree, Element, bytes, file name/path, '
-                    f'or file-like object, got {source!r}')
+    raise TypeError(
+        f"Expected ElementTree, Element, bytes, file name/path, "
+        f"or file-like object, got {source!r}"
+    )
 
 
 def parse_report(source):

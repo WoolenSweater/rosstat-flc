@@ -1,107 +1,120 @@
 import ply.yacc as yacc
-from .lexer import tokens
-from .elements import ElemLogic, ElemSelector, ElemList, Elem
+
+from .elements import Elem, ElemList, ElemLogic, ElemSelector
+from .lexer import tokens  # noqa: F401
 
 precedence = (
-    ('left', 'LOGIC'),
-    ('left', 'COMP'),
-    ('left', '+', '-'),
-    ('left', '*', '/'),
-    ('left', ','),
-    ('left', 'COALESCE', 'NULLIF', 'ISNULL', 'ROUND', 'SUM', 'ABS', 'FLOOR'),
-    ('left', '(', ')'),
-    ('right', 'UMINUS'),            # Unary minus operator
+    ("left", "LOGIC"),
+    ("left", "COMP"),
+    ("left", "+", "-"),
+    ("left", "*", "/"),
+    ("left", ","),
+    ("left", "COALESCE", "NULLIF", "ISNULL", "ROUND", "SUM", "ABS", "FLOOR"),
+    ("left", "(", ")"),
+    ("right", "UMINUS"),  # Unary minus operator
 )
 
 op_name = {
-    '+': 'add',
-    '-': 'sub',
-    '*': 'mul',
-    '/': 'truediv',
+    "+": "add",
+    "-": "sub",
+    "*": "mul",
+    "/": "truediv",
 }
 
 
 def p_elem_logic(p):
-    '''elem : elem COMP elem
-            | elem LOGIC elem'''
+    """
+    elem : elem COMP elem
+         | elem LOGIC elem
+    """
     p[0] = ElemLogic(p[1], p[2], p[3])
 
 
 def p_elem_selector(p):
-    '''elem : COALESCE elems
-            | NULLIF elems'''
+    """
+    elem : COALESCE elems
+         | NULLIF elems
+    """
     p[0] = ElemSelector(p[1], p[2])
 
 
 def p_elem_func(p):
-    '''elem : ABS elem
-            | SUM elem
-            | FLOOR elem'''
+    """
+    elem : ABS elem
+         | SUM elem
+         | FLOOR elem
+    """
     p[0] = p[2]
     p[0].add_func(p[1], None)
 
 
 def p_elem_func_args(p):
-    '''elem : ISNULL elems
-            | ROUND elems'''
+    """
+    elem : ISNULL elems
+         | ROUND elems
+    """
     p[0], *args = p[2]
     p[0].add_func(p[1], *args)
 
 
 def p_elem_math(p):
-    '''elem : elem '+' elem
-            | elem '-' elem
-            | elem '*' elem
-            | elem '/' elem'''
+    """
+    elem : elem '+' elem
+         | elem '-' elem
+         | elem '*' elem
+         | elem '/' elem
+    """
     p[0] = p[1]
     p[0].add_func(op_name[p[2]], p[3])
 
 
 def p_elem_num(p):
-    '''elem : NUM'''
+    """elem : NUM"""
     p[0] = Elem(p[1])
 
 
 def p_elem(p):
-    '''elem : '{' coords '}' '''
+    """elem : '{' coords '}'"""
     p[0] = ElemList(*p[2])
 
 
 def p_coord(p):
-    '''coords : CODE'''
+    """coords : CODE"""
     p[0] = [p[1]]
 
 
 def p_coords(p):
-    '''coords : coords CODE'''
+    """coords : coords CODE"""
     p[0] = p[1]
     p[0].append(p[2])
 
 
 def p_elem_group(p):
-    '''elems : elem ',' elem'''
+    """elems : elem ',' elem"""
     p[0] = [p[1], p[3]]
 
 
 def p_elem_groups(p):
-    '''elems : elems ',' elem'''
+    """elems : elems ',' elem"""
     p[0] = p[1]
     p[0].append(p[3])
 
 
 def p_elem_ne(p):
-    '''elem : '-' elem %prec UMINUS'''
+    """elem : '-' elem %prec UMINUS"""
     p[0] = -p[2]
 
 
 def p_elem_parens(p):
-    '''elem : '(' elem ')'
-       elems : '(' elems ')' '''
+    """
+    elem : '(' elem ')'
+    elems : '(' elems ')'
+    """
     p[0] = p[2]
 
 
 def p_error(p):
-    print('Unexpected token:', p)
+    print("Unexpected token:", p)
 
 
 parser = yacc.yacc()

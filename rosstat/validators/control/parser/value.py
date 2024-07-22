@@ -9,7 +9,7 @@ class Nullablefloat(float):
         self.is_null = is_null
 
     def __repr__(self):
-        return 'null' if self.is_null else super().__repr__()
+        return "null" if self.is_null else super().__repr__()
 
     def neg(self):
         return type(self)(-self)
@@ -24,7 +24,7 @@ class Nullablefloat(float):
         return self if self.is_null else type(self)(round(self, n))
 
     def truncate(self, n):
-        return self if self.is_null else type(self)(f'{self:.{int(n)}f}')
+        return self if self.is_null else type(self)(f"{self:.{int(n)}f}")
 
     def __add__(self, other):
         return self.__modify(super().__add__(other), other)

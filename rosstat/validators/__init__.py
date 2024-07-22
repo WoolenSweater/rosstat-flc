@@ -1,11 +1,11 @@
 from .attr import AttrValidator
-from .title import TitleValidator
-from .format import FormatValidator
 from .control import ControlValidator
+from .format import FormatValidator
+from .title import TitleValidator
 
 __all__ = [
-    'AttrValidator',
-    'TitleValidator',
-    'FormatValidator',
-    'ControlValidator'
+    "AttrValidator",
+    "TitleValidator",
+    "FormatValidator",
+    "ControlValidator",
 ]

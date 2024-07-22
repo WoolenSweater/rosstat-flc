@@ -49,6 +49,7 @@ coverage.xml
 .pytest_cache/
 
 # Project temp/test/work stuff
+.ruff_cache
 parser.out
 parsetab.py
 test.py

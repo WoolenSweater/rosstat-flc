@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-Error = namedtuple('Error', ('description', 'code', 'level'))
+Error = namedtuple("Error", ("description", "code", "level"))
 
 
 class AbstractValidator:

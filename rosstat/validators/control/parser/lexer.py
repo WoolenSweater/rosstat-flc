@@ -1,27 +1,28 @@
-from re import IGNORECASE, DOTALL
+from re import DOTALL, IGNORECASE
+
 import ply.lex as lex
 
-reserved = ['SUM', 'ABS', 'FLOOR', 'ROUND', 'ISNULL', 'NULLIF', 'COALESCE']
-literals = [',', '+', '-', '/', '*', '(', ')', '{', '}']
-tokens = ['CODE', 'LOGIC', 'NUM', 'COMP'] + reserved
+reserved = ["SUM", "ABS", "FLOOR", "ROUND", "ISNULL", "NULLIF", "COALESCE"]
+literals = [",", "+", "-", "/", "*", "(", ")", "{", "}"]
+tokens = ["CODE", "LOGIC", "NUM", "COMP"] + reserved
 
 reserved_map = {r.lower(): r for r in reserved}
 
-t_ignore = ' |\r\t\f'
+t_ignore = " |\r\t\f"
 
-t_COMP = r'[><=]{1,2}'
+t_COMP = r"[><=]{1,2}"
 
 
 def _range(rng):
-    start, end = rng.split('-')
+    start, end = rng.split("-")
     return (str(i) for i in range(int(start), int(end) + 1))
 
 
 def t_CODE(t):
-    r'\[.+?\]'
+    r"\[.+?\]"
     code = []
-    for i in map(lambda i: i.strip(), t.value[1:-1].split(',')):
-        if ('-' in i) and ('.' not in i):
+    for i in map(lambda i: i.strip(), t.value[1:-1].split(",")):
+        if ("-" in i) and ("." not in i):
             code.extend(_range(i))
         else:
             code.append(i)
@@ -30,20 +31,20 @@ def t_CODE(t):
 
 
 def t_NUM(t):
-    r'\d+(\.\d+)?'
+    r"\d+(\.\d+)?"
     t.value = float(t.value)
     return t
 
 
 def t_WORD(t):
-    r'\w+'
+    r"\w+"
     t.value = t.value.lower()
-    t.type = reserved_map.get(t.value, 'LOGIC')
+    t.type = reserved_map.get(t.value, "LOGIC")
     return t
 
 
 def t_newline(t):
-    r'\n+'
+    r"\n+"
     t.lexer.lineno += len(t.value)
 
 
