@@ -58,6 +58,6 @@ class ControlValidator(AbstractValidator):
             dimension=self._schema.dimension,
             skip_warns=self._schema.skip_warns,
         )
-        for ctrl in inspector.check(report):
-            message = self.__fmt_control(ctrl, inspector.name)
+        if (ctrl := inspector.check(report)) is not None:
+            message = self.__fmt_control(ctrl.dict(), inspector.name)
             self.error(message, inspector.id, level=inspector.tip)

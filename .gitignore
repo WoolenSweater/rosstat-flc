@@ -50,9 +50,7 @@ coverage.xml
 
 # Project temp/test/work stuff
 .ruff_cache
-parser.out
-parsetab.py
-test.py
+test*.py
 
 # Sphinx documentation
 docs/_build/

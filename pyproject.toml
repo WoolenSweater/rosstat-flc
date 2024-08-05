@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rosstat-flc"
-version = "2.0.0a0"
+version = "2.0.0a1"
 description = "Tool for format-logistic control of reports sent to RosStat"
 authors = ["Никита Рябинин <ryabinin.ne@gmail.com>"]
 license = "MIT"
@@ -26,7 +26,6 @@ classifiers = [
     "Natural Language :: Russian",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -35,9 +34,10 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8"
+python = ">=3.9"
 lxml = "^5.2.2"
-ply = {git = "https://github.com/dabeaz/ply"}
+numpy = "^2.0.1"
+lark = {extras = ["interegular"], version = "^1.1.9"}
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"

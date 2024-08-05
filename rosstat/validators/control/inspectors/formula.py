@@ -1,28 +1,14 @@
 from collections import namedtuple
-from itertools import chain
 
-from ..exceptions import (
-    ConditionExprError,
-    PrevPeriodNotImpl,
-    RuleExprError,
-    StopEvaluation,
-)
-from ..parser import parser
+from lark.exceptions import VisitError
+
+from ..exceptions import ConditionExprError, PrevPeriodNotImpl, RuleExprError
+from ..parser import parse, transform
 
 ControlParams = namedtuple(
     "ControlParams",
     ("is_rule", "formats", "catalogs", "dimension", "precision", "fault"),
 )
-
-
-def wrap_exc(f):
-    def wrapper(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except StopEvaluation:
-            return []
-
-    return wrapper
 
 
 class FormulaInspector:
@@ -49,25 +35,20 @@ class FormulaInspector:
         ).format(**self.__dict__)
 
     def check(self, report):
-        if self._check_condition(report):
+        if self._check_condition(report) is None:
             return self._check_rule(report)
-        return []
 
-    @wrap_exc
     def _check_condition(self, report):
         """Проверка условия для выполнения контроля"""
         if self.condition and not self._is_previous_period(self.condition):
             evaluator = self.__parse(self.condition, ConditionExprError)
-            return not list(self.__check(report, evaluator, self.__params()))
-        return True
+            return self.__check(report, evaluator, self.__params())
 
-    @wrap_exc
     def _check_rule(self, report):
         """Проверка правила контроля"""
         if self.rule and not self._is_previous_period(self.rule):
             evaluator = self.__parse(self.rule, RuleExprError)
             return self.__check(report, evaluator, self.__params(is_rule=True))
-        return []
 
     def __params(self, is_rule=False):
         """Упаковка параметров для проверки в именованный кортеж"""
@@ -82,15 +63,17 @@ class FormulaInspector:
 
     def __parse(self, formula, exc):
         """Парсинг формулы контроля"""
-        evaluator = parser.parse(formula)
+        evaluator = parse(formula)
         if evaluator is None:
             raise exc(self.id)
         return evaluator
 
-    def __check(self, report, evaluator, params):
+    def __check(self, report, tree, params):
         """Выполнение проверки. Возвращает список проваленых проверок"""
-        results = evaluator.check(report, params)
-        return chain.from_iterable(result.controls for result in results)
+        try:
+            transform(report, tree, params)
+        except VisitError as exc:
+            return exc.orig_exc
 
     def _is_previous_period(self, formula):
         """Проверка наличия в формуле элемента в двух фигурных скобках,

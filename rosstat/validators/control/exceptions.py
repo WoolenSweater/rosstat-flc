@@ -26,6 +26,22 @@ class NoFormatForRowError(StopEvaluation):
     """Нет формата для строки из формулы контроля"""
 
 
+class ControlFault(StopEvaluation):
+    def __init__(self, delta, left, right, op):
+        self.left = left
+        self.right = right
+        self.delta = delta
+        self.op = op
+
+    def dict(self):
+        return {
+            "left": float(self.left),
+            "operator": str(self.op),
+            "right": float(self.right),
+            "delta": float(self.delta),
+        }
+
+
 class PrevPeriodNotImpl(ControlError):
     def __init__(self, id):
         self.id = id

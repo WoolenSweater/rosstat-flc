@@ -1,0 +1,77 @@
+%import common.WS
+%import common.WORD
+%import common.INT
+%import common.SIGNED_NUMBER
+
+%ignore WS
+%ignore "|"
+
+!all: "*"
+
+!bool_op: "and"|"or"
+!logic_op:  "<"|"<="|"="|">="|">"|"<>"
+
+!add_op:  "+"|"-"
+!mul_op:  "*"|"/"
+
+ident: /[\w\d\.]+/i
+num: SIGNED_NUMBER
+code: INT
+
+?start: expr
+
+?expr: bool_expr
+
+?bool_expr: logic_expr
+          | bool_expr bool_op logic_expr
+
+?logic_expr: math_term
+           | logic_expr logic_op math_term
+
+// math
+
+?math_term: math_factor
+          | math_term add_op math_factor
+
+?math_factor: math_operand
+            | math_factor mul_op math_operand
+
+?math_operand: num
+             | sum
+             | element
+             | function
+             | "(" math_term ")"
+        
+// function
+
+function: WORD "(" params ")"
+
+params: math_term ("," math_term)*
+
+// sum
+
+sum: "sum" scope
+
+?scope: element
+      | function
+      | "(" math_term ")"
+
+// element
+
+element: "{" section row column specs? "}"
+
+specs: spec [spec [spec]]
+
+section: "[" code "]"
+
+row: "[" (all | coord ("," coord)*) "]"
+
+column: "[" (all | coord ("," coord)*) "]"
+
+spec: "[" (all | value ("," value)*) "]"
+
+?coord: code
+      | code "-" code -> range
+
+?value: ident
+      | ident "-" ident -> slice

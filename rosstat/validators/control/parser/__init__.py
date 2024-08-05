@@ -1,5 +1,13 @@
-from .parser import parser
+from lark import Lark
 
-__all__ = [
-    "parser",
-]
+from rosstat.validators.control.parser.transformer import ControlExpr
+
+parser = Lark.open("grammar.lark", rel_to=__file__, strict=True, parser="lalr")
+
+
+def parse(control):
+    return parser.parse(control.lower())
+
+
+def transform(report, tree, params):
+    return ControlExpr(report, params).transform(tree)
