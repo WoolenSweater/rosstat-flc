@@ -2,7 +2,12 @@ from collections import namedtuple
 
 from lark.exceptions import VisitError
 
-from ..exceptions import ConditionExprError, PrevPeriodNotImpl, RuleExprError
+from ..exceptions import (
+    ConditionExprError,
+    ControlFault,
+    PrevPeriodNotImpl,
+    RuleExprError,
+)
 from ..parser import parse, transform
 
 ControlParams = namedtuple(
@@ -73,7 +78,9 @@ class FormulaInspector:
         try:
             transform(report, tree, params)
         except VisitError as exc:
-            return exc.orig_exc
+            if isinstance(exc.orig_exc, ControlFault):
+                return exc.orig_exc
+            raise
 
     def _is_previous_period(self, formula):
         """Проверка наличия в формуле элемента в двух фигурных скобках,

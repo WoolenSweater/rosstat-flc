@@ -14,9 +14,9 @@ def sum_(array, ctx):
     if isinstance(ctx, float):
         return nansum(array)
     elif array.coords.rows == ctx.coords.rows:
-        return nansum(array, axis=0)
-    elif array.coords.cols == ctx.coords.cols:
         return nansum(array, axis=1)
+    elif array.coords.cols == ctx.coords.cols:
+        return nansum(array, axis=0)
     else:
         return nansum(array)
 
@@ -35,6 +35,9 @@ def floor_(array):
 
 def isnull_(array, nan):
     return nan_to_num(array, nan=nan)
+
+
+innerarray = operator.itemgetter(0)
 
 
 FUNCTION_MAP = {

@@ -12,6 +12,7 @@ from rosstat.validators.control.parser.entities import (
 )
 from rosstat.validators.control.parser.functions import (
     FUNCTION_MAP,
+    innerarray,
     round_,
     sum_,
 )
@@ -54,7 +55,11 @@ class ControlExpr(Transformer):
     # ---
 
     def _call_partial(self, operand, ctx):
-        return operand(ctx) if isinstance(operand, partial) else operand
+        if isinstance(operand, partial):
+            if isinstance(ctx, partial):
+                ctx = innerarray(ctx.args)
+            return operand(ctx)
+        return operand
 
     def _call(self, left, right, func):
         left = self._call_partial(left, right)
@@ -63,30 +68,30 @@ class ControlExpr(Transformer):
         return func(left), func(right)
 
     def __exact_expr(self, left, op, right):
-        operands = self._call(left, right, self._pass)
+        left, right = self._call(left, right, self._pass)
 
-        return FUNCTION_MAP.get(op)(*operands), *operands
+        return FUNCTION_MAP.get(op)(left, right), left, right
 
     def __approx_expr(self, left, op, right):
-        operands = self._call(left, right, self._round)
+        left, right = self._call(left, right, self._round)
 
-        return FUNCTION_MAP.get(op)(*operands), *operands
+        return FUNCTION_MAP.get(op)(left, right), left, right
 
     @v_args(inline=True)
     def _math_expr(self, left, op, right):
-        return self.__exact_expr(left, op, right)[0]
+        result, left, right = self.__exact_expr(left, op, right)
+        return result
 
     @v_args(inline=True)
     def _bool_expr(self, left, op, right):
-        result = self.__exact_expr(left, op, right)
-        return self._raise_if_false(*result, op)
+        result, left, right = self.__exact_expr(left, op, right)
+        if not result.all():
+            raise ControlFault(1, left, right, op)
+        return result
 
     @v_args(inline=True)
     def _logic_expr(self, left, op, right):
-        result = self.__approx_expr(left, op, right)
-        return self._raise_if_false(*result, op)
-
-    def _raise_if_false(self, result, left, right, op):
+        result, left, right = self.__approx_expr(left, op, right)
         if not result.all():
             if (delta := abs(left - right) > self._fault).any():
                 raise ControlFault(delta, left, right, op)
@@ -131,12 +136,14 @@ class ControlExpr(Transformer):
     def all(self, children):
         return All()
 
-    def range(self, children):
-        return range(*children)
+    @v_args(inline=True)
+    def range(self, start, end):
+        return range(start, end + 1)
 
-    def slice(self, children):
-        start = self._specs.index(children[0])
-        end = self._specs.index(children[1])
+    @v_args(inline=True)
+    def slice(self, start, end):
+        start = self._specs.index(start)
+        end = self._specs.index(end)
 
         return self._specs[start : end + 1]
 
