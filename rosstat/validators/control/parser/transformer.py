@@ -93,7 +93,7 @@ class ControlExpr(Transformer):
     def _logic_expr(self, left, op, right):
         result, left, right = self.__approx_expr(left, op, right)
         if not result.all():
-            if (delta := abs(left - right) > self._fault).any():
+            if ((delta := abs(left - right)) >= self._fault).any():
                 raise ControlFault(delta, left, right, op)
         return result
 

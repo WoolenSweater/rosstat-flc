@@ -12,7 +12,7 @@ from ..parser import parse, transform
 
 ControlParams = namedtuple(
     "ControlParams",
-    ("is_rule", "formats", "catalogs", "dimension", "precision", "fault"),
+    ("formats", "catalogs", "dimension", "precision", "fault"),
 )
 
 
@@ -29,7 +29,7 @@ class FormulaInspector:
         self.condition = control.attrib["condition"].strip()
 
         self.tip = int(control.attrib.get("tip", "1"))
-        self.fault = float(control.attrib.get("fault", "-1"))
+        self.fault = float(control.attrib.get("fault", "0"))
         self.precision = int(control.attrib.get("precision", "2"))
 
     def __repr__(self):
@@ -58,12 +58,11 @@ class FormulaInspector:
     def __params(self, is_rule=False):
         """Упаковка параметров для проверки в именованный кортеж"""
         return ControlParams(
-            is_rule,
             self.formats,
             self.catalogs,
             self.dimension,
             self.precision,
-            self.fault if is_rule else float(-1),
+            self.fault,
         )
 
     def __parse(self, formula, exc):
