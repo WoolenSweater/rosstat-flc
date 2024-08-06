@@ -1,6 +1,6 @@
-from collections import namedtuple
+from dataclasses import dataclass
 
-from lark.exceptions import VisitError
+from lark.exceptions import UnexpectedCharacters, UnexpectedToken, VisitError
 
 from ..exceptions import (
     ConditionExprError,
@@ -10,84 +10,83 @@ from ..exceptions import (
 )
 from ..parser import parse, transform
 
-ControlParams = namedtuple(
-    "ControlParams",
-    ("formats", "catalogs", "dimension", "precision", "fault"),
-)
+
+@dataclass
+class ControlParams:
+    precision: int
+    fault: float
+    formats: dict
+    catalogs: dict
+    dimension: dict
 
 
 class FormulaInspector:
-    def __init__(self, control, *, formats, catalogs, dimension, skip_warns):
-        self._skip_warns = skip_warns
+    def __init__(self, control, *, formats, catalogs, dimension, alerts=False):
+        self.alerts = alerts
 
-        self.formats = formats
-        self.catalogs = catalogs
-        self.dimension = dimension
         self.id = control.attrib["id"]
         self.name = control.attrib["name"]
-        self.rule = control.attrib["rule"].strip()
-        self.condition = control.attrib["condition"].strip()
+        self.rule = control.attrib["rule"]
+        self.condition = control.attrib["condition"]
 
         self.tip = int(control.attrib.get("tip", "1"))
         self.fault = float(control.attrib.get("fault", "0"))
         self.precision = int(control.attrib.get("precision", "2"))
 
-    def __repr__(self):
+        self.params = self.__params(formats, catalogs, dimension)
+
+    def __params(self, formats, catalogs, dimension):
+        return ControlParams(
+            self.precision, self.fault, formats, catalogs, dimension
+        )
+
+    def __str__(self):
         return (
-            "<FormulaInspector id={id} name={name} rule={rule} "
-            "condition={condition} fault={fault} "
-            "precision={precision}>"
-        ).format(**self.__dict__)
+            f"<FormulaInspector id={self.id} tip={self.tip} "
+            f"fault={self.fault} precision={self.precision} "
+            f"condition={self.condition} rule={self.rule}>"
+        )
 
     def check(self, report):
         if self._check_condition(report) is None:
             return self._check_rule(report)
 
     def _check_condition(self, report):
-        """Проверка условия для выполнения контроля"""
-        if self.condition and not self._is_previous_period(self.condition):
-            evaluator = self.__parse(self.condition, ConditionExprError)
-            return self.__check(report, evaluator, self.__params())
+        """Проверка условия контроля"""
+        return self._check_formula(report, self.condition, ConditionExprError)
 
     def _check_rule(self, report):
-        """Проверка правила контроля"""
-        if self.rule and not self._is_previous_period(self.rule):
-            evaluator = self.__parse(self.rule, RuleExprError)
-            return self.__check(report, evaluator, self.__params(is_rule=True))
+        """Проверка правила"""
+        return self._check_formula(report, self.rule, RuleExprError)
 
-    def __params(self, is_rule=False):
-        """Упаковка параметров для проверки в именованный кортеж"""
-        return ControlParams(
-            self.formats,
-            self.catalogs,
-            self.dimension,
-            self.precision,
-            self.fault,
-        )
+    def _check_formula(self, report, formula, exc):
+        """Проверка, парсинг и применение формулы на отчёт"""
+        try:
+            if formula and not self._is_previous_period(formula):
+                self.__check(report, self.__parse(formula, exc))
+        except ControlFault as exc:
+            return exc
 
     def __parse(self, formula, exc):
-        """Парсинг формулы контроля"""
-        evaluator = parse(formula)
-        if evaluator is None:
-            raise exc(self.id)
-        return evaluator
-
-    def __check(self, report, tree, params):
-        """Выполнение проверки. Возвращает список проваленых проверок"""
+        """Парсинг формулы"""
         try:
-            transform(report, tree, params)
+            return parse(formula)
+        except (UnexpectedCharacters, UnexpectedToken):
+            raise exc(self.id)
+
+    def __check(self, report, tree):
+        """Выполнение проверки"""
+        try:
+            transform(report, tree, self.params)
         except VisitError as exc:
-            if isinstance(exc.orig_exc, ControlFault):
-                return exc.orig_exc
-            raise
+            raise exc.orig_exc
 
     def _is_previous_period(self, formula):
-        """Проверка наличия в формуле элемента в двух фигурных скобках,
-        что говорит о том, что значение берётся за прошлый период.
-        Такой функционал пока неизвестно когда получится реализовать
+        """
+        Две фигурные скобки говорят о том, что значение необходимо брать из
+        отчёта за прошлый период. Такой функционал не будет реализован
         """
         if "{{" in formula:
-            if self._skip_warns:
-                return True
-            else:
+            if self.alerts:
                 raise PrevPeriodNotImpl(self.id)
+            return True
