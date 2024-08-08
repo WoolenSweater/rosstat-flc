@@ -112,6 +112,8 @@ class ControlExpr(Transformer):
     bool_op = _pop
     logic_op = _pop
 
+    func_name = _pop
+
     section = _pop
     row = _flatten
     column = _flatten

@@ -1,5 +1,4 @@
 %import common.WS
-%import common.WORD
 %import common.INT
 %import common.SIGNED_NUMBER
 
@@ -10,6 +9,8 @@
 
 !bool_op: "and"|"or"
 !logic_op:  "<"|"<="|"="|">="|">"|"<>"
+
+!func_name: "abs"|"coalesce"|"floor"|"isnull"|"nullif"|"round"
 
 !add_op:  "+"|"-"
 !mul_op:  "*"|"/"
@@ -40,11 +41,11 @@ code: INT
              | sum
              | element
              | function
-             | "(" math_term ")"
+             | "(" expr ")"
         
 // function
 
-function: WORD "(" params ")"
+function: func_name "(" params ")"
 
 params: math_term ("," math_term)*
 
