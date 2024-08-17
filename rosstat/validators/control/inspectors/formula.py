@@ -40,7 +40,7 @@ class FormulaInspector:
             self.precision, self.fault, formats, catalogs, dimension
         )
 
-    def __str__(self):
+    def __repr__(self):
         return (
             f"<FormulaInspector id={self.id} tip={self.tip} "
             f"fault={self.fault} precision={self.precision} "

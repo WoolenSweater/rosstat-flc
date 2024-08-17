@@ -1,7 +1,7 @@
 import traceback
 from collections import defaultdict
 
-from .helpers import NestedDefaultdict, SchemaFormats, str_int
+from .helpers import SchemaCatalog, SchemaFormat, str_int
 from .validators import (
     AttrValidator,
     ControlValidator,
@@ -11,11 +11,11 @@ from .validators import (
 
 
 class Schema:
-    def __init__(self, xml_tree, *, skip_warns):
-        self.xml = xml_tree
+    def __init__(self, xml, *, alerts=False):
+        self.alerts = alerts
+        self.xml = xml
         self.errors = []
         self.required = []
-        self.skip_warns = skip_warns
         self.dimension = defaultdict(list)
 
         self.idp = self._get_idp()
@@ -28,91 +28,99 @@ class Schema:
         self.validators = self._init_validators()
 
     def __repr__(self):
-        return "<Schema idp={idp} obj={obj} title={title}".format(
-            **self.__dict__
+        return (
+            f"<Schema idp={self.idp} obj={self.obj} alerts={self.alerts} "
+            f"formats={self.formats.keys()} catalogs={self.catalogs.keys()}>"
         )
 
     def _get_idp(self):
         """Получение атрибута idp"""
-        return str(int(self.xml.xpath("/metaForm/@idp")[0]))
+        return self.xml.xpath("string(@idp)")
 
     def _get_obj(self):
         """Получение атрибута obj"""
-        return self.xml.xpath("/metaForm/@obj")[0]
+        return self.xml.xpath("string(@obj)")
 
     def _get_title(self):
         """Получение ноды с заголовком"""
-        return self.xml.xpath("/metaForm/title")[0]
+        return self.xml.find("title")
+
+    def _get_controls(self):
+        """Получение итератора по нодам контролей"""
+        return self.xml.iterfind("controls/control")
+
+    # ---
 
     def _get_formats(self):
-        """Итерация по секциям, строкам и колонокам с получением нод,
-        определяющих формат строк и значений в отчёте
-        """
-        form = SchemaFormats()
-        for section in self.xml.xpath("/metaForm/sections/section"):
-            sec_code = str_int(section.attrib["code"])
-            defaults, specs = self.__get_default_formats(section, sec_code)
-            form[sec_code] = {"specs": specs}
+        """Чтение атрибутов определяющих формат строк и значений в отчёте"""
+        form = SchemaFormat()
 
-            for row in section.xpath('./rows/row[@type!="C"]'):
-                row_code = str_int(row.attrib["code"])
+        for section in self.xml.iterfind("sections/section"):
+            sec_code = str_int(section.get("code"))
+
+            defaults, specs = self._read_defaults(section, sec_code)
+            form.add(sec_code, specs)
+
+            for row in section.iterfind("rows/row"):
+                row_code = str_int(row.get("code"))
+
                 form[sec_code][row_code] = defaults.copy()
 
-                for cell in row.xpath("./cell"):
-                    col_code = str_int(cell.attrib["column"])
+                for cell in row.iterfind("cell"):
+                    col_code = cell.get("column")
+
                     form[sec_code][row_code][col_code] = cell.attrib
 
-                    if self.__required_cell(row, cell):
-                        coords = (sec_code, row_code, col_code)
-                        self.required.append(coords)
+                    if self.__is_required_cell(row, cell):
+                        self.required.append((sec_code, row_code, col_code))
         return form
 
-    def __required_cell(self, row, cell):
-        """Проверка, является ли ячейка обязательной к заполнению"""
-        if cell.attrib["inputType"] == "1" and row.attrib["type"] != "M":
-            return True
-        return False
-
-    def __get_default_formats(self, section, sec_code):
-        """Получение нод определяющих формат строк и значений по умолчанию"""
+    def _read_defaults(self, section, sec_code):
+        """Чтение атрибутов определяющих дефолтный формат и специфики"""
         defaults, specs = {}, {}
-        for column in section.xpath("./columns/column"):
-            col_code = str_int(column.attrib["code"])
 
-            if column.attrib["type"] == "S":
-                specs[col_code] = column.attrib["fld"]
-            elif column.attrib["type"] == "Z":
-                defaults[col_code] = self.__get_default_cell(column)
+        for column in section.iterfind("columns/column"):
+            col_code = column.get("code")
+            col_type = column.get("type")
+
+            defaults[col_code] = self.__get_default_cell(column)
+
+            if col_type == "S":
+                specs[column.get("fld")] = col_code
+            elif col_type == "Z":
                 self.dimension[sec_code].append(col_code)
 
         return defaults, specs
 
     def __get_default_cell(self, column):
-        """Возвращает словарь атрибутов дефолтной ячейки или пустой словарь"""
+        """Получение дефолтного словаря атрибутов ячейки"""
         try:
             return column.find("default-cell").attrib
         except AttributeError:
             return {}
 
-    def _get_controls(self):
-        """Получение нод с контролями"""
-        return self.xml.xpath("/metaForm/controls/control")
+    def __is_required_cell(self, row, cell):
+        """Обязательная к заполнению ячейка"""
+        return cell.get("inputType") == "1" and row.get("type") != "M"
+
+    # ---
 
     def _get_catalogs(self):
-        """Получение справочников"""
-        catalogs = defaultdict(dict)
-        for catalog in self.xml.xpath("/metaForm/dics/dic"):
-            catalog_id = catalog.attrib["id"]
-            catalogs[catalog_id]["full"] = NestedDefaultdict(set)
-            catalogs[catalog_id]["ids"] = []
+        """Чтение справочников"""
+        catalogs = defaultdict(SchemaCatalog)
 
-            for term_node in catalog.xpath("./term"):
-                term_id = term_node.attrib.pop("id")
+        for catalog in self.xml.iterfind("dics/dic"):
+            catalog_id = catalog.attrib.get("id")
 
-                catalogs[catalog_id]["ids"].append(term_id)
+            for term in catalog.iterfind("term"):
+                term_id = term.attrib.pop("id")
 
-                for attr, value in term_node.attrib.items():
-                    catalogs[catalog_id]["full"][term_id][attr].add(value)
+                catalogs[catalog_id].set(term_id)
+
+                for dic_id, dic_value in term.attrib.items():
+                    catalogs[catalog_id][term_id][dic_id].add(dic_value)
+
+            catalogs[catalog_id].sort()
         return catalogs
 
     def _init_validators(self):

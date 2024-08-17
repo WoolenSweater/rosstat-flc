@@ -53,10 +53,10 @@ class ControlValidator(AbstractValidator):
         """Проверка контрольных значений отчёта"""
         inspector = FormulaInspector(
             control,
+            alerts=self._schema.alerts,
             formats=self._schema.formats,
             catalogs=self._schema.catalogs,
             dimension=self._schema.dimension,
-            alerts=not self._schema.skip_warns,
         )
         if (ctrl := inspector.check(report)) is not None:
             message = self.__fmt_control(ctrl.dict(), inspector.name)

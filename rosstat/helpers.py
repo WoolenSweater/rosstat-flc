@@ -7,19 +7,18 @@ def str_int(v):
     return str(int(v)) if v.isdigit() else v
 
 
-class SchemaFormats(dict):
-    def _get_spec_code(self, sec_code, spec_key):
-        """Возвращает из указаной секции код специфики по её ключу"""
-        for code, key in self[sec_code]["specs"].items():
-            if key == spec_key:
-                return code
-
+class SchemaFormat(dict):
     def get_spec_params(self, sec_code, row_code, spec_key):
-        """Возвращает для указанной секции и строки словарь параметров,
+        """
+        Возвращает для указанного раздела и строки словарь параметров,
         определяющий формат проверок для специфики с указанным кодом
         """
-        spec_code = self._get_spec_code(sec_code, str(spec_key))
-        return self[sec_code][row_code].get(spec_code, {})
+        col_code = self[sec_code]["specs"][spec_key]
+        return self[sec_code][row_code].get(col_code, {})
+
+    def add(self, sec_code, specs):
+        """Добавляем раздел и идентификаторы специфик"""
+        self[sec_code] = {"specs": specs}
 
     def has(self, sec_code, row_code):
         """Проверяем наличие формата для указанных раздела и строки"""
@@ -29,19 +28,14 @@ class SchemaFormats(dict):
             return False
 
 
-class NestedDefaultdict(dict):
-    def __init__(self, default_factory):
-        self.default_factory = default_factory
+class SchemaCatalog(dict):
+    def set(self, term_id):
+        """Установка термину пустого словаря сетов если ещё нет"""
+        self.setdefault(term_id, defaultdict(set))
 
-    def __repr__(self):
-        return "<nesteddefaultdict {}>".format(super().__repr__())
-
-    def __getitem__(self, key):
-        try:
-            return super().__getitem__(key)
-        except KeyError:
-            self[key] = defaultdict(self.default_factory)
-            return self[key]
+    def sort(self):
+        """Сортировка идентификаторов терминов"""
+        self["ids"] = sorted(self.keys())
 
 
 class MultiDict:

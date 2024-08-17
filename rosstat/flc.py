@@ -28,6 +28,6 @@ def parse_report(source):
     return Report(xml_etree)
 
 
-def parse_schema(source, skip_warns=False):
+def parse_schema(source, alerts=False):
     xml_etree = _get_xml_etree(source)
-    return Schema(xml_etree, skip_warns=skip_warns)
+    return Schema(xml_etree, alerts=alerts)
