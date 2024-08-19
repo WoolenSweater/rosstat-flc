@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rosstat-flc"
-version = "2.0.0a7"
+version = "2.0.0a8"
 description = "Tool for format-logistic control of reports sent to RosStat"
 authors = ["Никита Рябинин <ryabinin.ne@gmail.com>"]
 license = "MIT"
@@ -37,6 +37,7 @@ classifiers = [
 python = ">=3.9"
 lxml = "^5.2.2"
 numpy = "^2.0.1"
+multidict = "^6.0.5"
 lark = {extras = ["interegular"], version = "^1.1.9"}
 
 [tool.poetry.group.dev.dependencies]

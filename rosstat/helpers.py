@@ -1,6 +1,8 @@
 from collections import defaultdict
 
-SPEC_KEYS = ("s1", "s2", "s3")
+
+def read_specs(xml):
+    return {spec_key: xml.get(spec_key) for spec_key in ("s1", "s2", "s3")}
 
 
 def str_int(v):
@@ -53,29 +55,3 @@ class SchemaDimension:
     def add_column(self, col_code):
         """Добавление кода колонки"""
         self.columns.append(col_code)
-
-
-class MultiDict:
-    def __init__(self):
-        self.keys = []
-        self.values = []
-
-    def __iter__(self):
-        return iter(sorted(set(self.keys), key=int))
-
-    def __repr__(self):
-        return "<MultiDict {}>".format(list(zip(self.keys, self.values)))
-
-    def add(self, key, value):
-        self.keys.append(key)
-        self.values.append(value)
-
-    def get(self, key):
-        values = []
-        for k, v in zip(self.keys, self.values):
-            if k == key:
-                values.append(v)
-        return values
-
-    def getall(self):
-        return self.values
