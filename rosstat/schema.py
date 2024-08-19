@@ -1,7 +1,7 @@
 import traceback
 from collections import defaultdict
 
-from .helpers import SchemaCatalog, SchemaFormat, str_int
+from .helpers import SchemaCatalog, SchemaDimension, SchemaFormat, str_int
 from .validators import (
     AttrValidator,
     ControlValidator,
@@ -16,7 +16,7 @@ class Schema:
         self.xml = xml
         self.errors = []
         self.required = []
-        self.dimension = defaultdict(list)
+        self.dimension = defaultdict(SchemaDimension)
 
         self.idp = self._get_idp()
         self.obj = self._get_obj()
@@ -66,6 +66,9 @@ class Schema:
 
                 form[sec_code][row_code] = defaults.copy()
 
+                if self.__is_input_row(row):
+                    self.dimension[sec_code].add_row(row_code)
+
                 for cell in row.iterfind("cell"):
                     col_code = cell.get("column")
 
@@ -74,6 +77,10 @@ class Schema:
                     if self.__is_required_cell(row, cell):
                         self.required.append((sec_code, row_code, col_code))
         return form
+
+    def __is_input_row(self, row):
+        """Строка доступная для ввода данных"""
+        return row.get("type") != "C"
 
     def _read_defaults(self, section, sec_code):
         """Чтение атрибутов определяющих дефолтный формат и специфики"""
@@ -88,7 +95,7 @@ class Schema:
             if col_type == "S":
                 specs[column.get("fld")] = col_code
             elif col_type == "Z":
-                self.dimension[sec_code].append(col_code)
+                self.dimension[sec_code].add_column(col_code)
 
         return defaults, specs
 

@@ -38,6 +38,23 @@ class SchemaCatalog(dict):
         self["ids"] = sorted(self.keys())
 
 
+class SchemaDimension:
+    def __init__(self):
+        self.rows = []
+        self.columns = []
+
+    def __repr__(self):
+        return f"<SchemaDimension rows={self.rows} columns={self.columns}>"
+
+    def add_row(self, row_code):
+        """Добавление кода строки"""
+        self.rows.append(row_code)
+
+    def add_column(self, col_code):
+        """Добавление кода колонки"""
+        self.columns.append(col_code)
+
+
 class MultiDict:
     def __init__(self):
         self.keys = []
