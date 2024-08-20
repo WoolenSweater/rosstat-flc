@@ -4,11 +4,8 @@ Error = namedtuple("Error", ("description", "code", "level"))
 
 
 class AbstractValidator:
-    def __init__(self, schema):
-        self._schema = schema
-
-    def error(self, *args, level=1):
-        self.errors.append(Error(*args, level))
+    def error(self, description, code, level=1):
+        self.errors.append(Error(description, code, level))
 
     def validate(self, report):
         raise NotImplementedError

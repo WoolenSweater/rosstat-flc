@@ -35,8 +35,8 @@ class FormatValidator(AbstractValidator):
 
     def _check_sections(self, report):
         """Проверка целостности отчёта"""
-        report_sections = set(section.code for section in report.iter())
-        schema_sections = set(self._schema.dimension.keys())
+        report_sections = report.sections.keys()
+        schema_sections = self._schema.dimension.keys()
 
         for section in schema_sections - report_sections:
             raise NoSectionReportError(section)
@@ -76,12 +76,12 @@ class FormatValidator(AbstractValidator):
     def __check_row(self, sec_code, row_code, row):
         """Итерация по ожидаемым спецификам с их последующей проверкой"""
         specs_map = self.__get_specs(sec_code)
-        for col_code, spec_idx in specs_map.items():
+        for spec_key, col_code in specs_map.items():
             self.__check_format(
                 (sec_code, row_code, col_code),
                 SpecInspector,
                 row,
-                spec_idx,
+                spec_key,
                 specs_map,
             )
 

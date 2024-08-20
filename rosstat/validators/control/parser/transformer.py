@@ -50,7 +50,7 @@ class ControlExpr(Transformer):
 
     @staticmethod
     def _flatten(children):
-        return list(flatten_mixed(children))
+        return list(map(str, flatten_mixed(children)))
 
     # ---
 
@@ -157,12 +157,12 @@ class ControlExpr(Transformer):
 
     @v_args(inline=True)
     def element(self, section, rows, cols, specs=None):
-        coords = Coords(section, rows, cols)
+        coords = Coords(str(section), rows, cols)
         return Element(coords, specs, list(self._read_report(coords)))
 
     def _read_report(self, coords):
-        sec = self._report.get_section(str(coords.section))
-        dim = self._dimension.get(str(coords.section))
+        sec = self._report.get_section(coords.section)
+        dim = self._dimension.get(coords.section)
 
-        for row in sec.iter(map(str, coords.rows)):
-            yield [col.value for col in row.iter(map(str, coords.cols), dim)]
+        for row in sec.iter(coords.rows or dim["rows"]):
+            yield [col.value for col in row.iter(coords.cols or dim["cols"])]

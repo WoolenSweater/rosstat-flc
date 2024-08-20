@@ -1,7 +1,7 @@
 from numpy import asarray, ndarray
 
 
-class All:
+class All(str):
     def __repr__(self):
         return "All"
 
