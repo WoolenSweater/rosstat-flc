@@ -57,58 +57,48 @@ class NoRuleError(FormatError):
 # ---
 
 
-class SpecBaseError(FormatError):
-    def update(self, coords, spec):
-        self.msg = "Раздел {}, строка {}, специфика {}. {}".format(
-            coords[0], coords[1], spec, self.msg
-        )
-
-
-class SpecNotInDictError(SpecBaseError):
-    msg = "Специфика отсутствует в справочнике"
-    code = "7"
-
-
-class SpecValueError(SpecBaseError):
-    msg = "Недопустмое значение"
-    code = "8"
-
-
-# ---
-
-
-class ValueBaseError(FormatError):
+class FormatInspectorError(FormatError):
     def update(self, coords):
         self.msg = "Раздел {}, строка {}, графа {}. {}".format(
             *coords, self.msg
         )
 
 
-class ValueNotNumberError(ValueBaseError):
+class SpecNotInDictError(FormatInspectorError):
+    msg = "Специфика отсутствует в справочнике"
+    code = "7"
+
+
+class SpecValueError(FormatInspectorError):
+    msg = "Недопустмое значение"
+    code = "8"
+
+
+class ValueNotNumberError(FormatInspectorError):
     msg = "Значение не является числом"
     code = "9"
 
 
-class ValueBadFormat(ValueBaseError):
+class ValueBadFormat(FormatInspectorError):
     msg = "Число не соответствует формату"
     code = "10"
 
 
-class ValueLengthError(ValueBaseError):
+class ValueLengthError(FormatInspectorError):
     msg = "Длина строки больше допустимого"
     code = "11"
 
 
-class ValueNotInDictError(ValueBaseError):
+class ValueNotInDictError(FormatInspectorError):
     msg = "Значение отсутствует в справочнике"
     code = "12"
 
 
-class ValueNotInRangeError(ValueBaseError):
+class ValueNotInRangeError(FormatInspectorError):
     msg = "Значение не входит в диапазон допустимых"
     code = "13"
 
 
-class ValueNotInListError(ValueBaseError):
+class ValueNotInListError(FormatInspectorError):
     msg = "Значение не входит в список допустимых"
     code = "14"

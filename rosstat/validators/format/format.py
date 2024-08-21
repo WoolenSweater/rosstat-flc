@@ -4,6 +4,7 @@ from .exceptions import (
     EmptyColumnError,
     EmptyRowError,
     FormatError,
+    FormatInspectorError,
     NoRuleError,
     NoSectionReportError,
     NoSectionTemplateError,
@@ -16,11 +17,31 @@ class FormatValidator(AbstractValidator):
     code = "3"
 
     def __init__(self, schema):
-        self._schema = schema
         self.errors = []
 
+        self.dimension = schema.dimension
+        self.required = schema.required
+        self.catalogs = schema.catalogs
+        self.formats = schema.formats
+
     def __repr__(self):
-        return "<FormatValidator errors={errors}>".format(**self.__dict__)
+        return (
+            f"<FormatValidator "
+            f"dimension={self.dimension} "
+            f"required={self.required} "
+            f"formats={self.formats} "
+            f"errors={self.errors}>"
+        )
+
+    @staticmethod
+    def __fmt(specs):
+        """Форматирование специфик"""
+        return " ".join(f"s{i}={s}" for i, s in enumerate(specs, 1) if s)
+
+    @staticmethod
+    def __get_coords(*coords):
+        """Группировка координат"""
+        return coords
 
     def validate(self, report):
         try:
@@ -35,80 +56,71 @@ class FormatValidator(AbstractValidator):
 
     def _check_sections(self, report):
         """Проверка целостности отчёта"""
-        report_sections = report.sections.keys()
-        schema_sections = self._schema.dimension.keys()
-
-        for section in schema_sections - report_sections:
+        for section in report.sections.keys() - self.dimension.keys():
             raise NoSectionReportError(section)
 
     def _check_duplicates(self, report):
         """Проверка дубликатов строк"""
-
-        def __fmt_specs(specs):
-            return " ".join(f"s{i}={s}" for i, s in enumerate(specs, 1) if s)
-
         for section in report.iter():
             for row, counter in section.rows_counter.items():
                 if counter > 1:
                     row_code, *specs = row
                     if any(specs):
-                        row_code = f"{row_code} {__fmt_specs(specs)}"
+                        row_code = f"{row_code} {self.__fmt(specs)}"
                     raise DuplicateError(section.code, row_code, counter)
 
     def _check_required(self, report):
         """Проверка наличия обязательных к заполнению строк и значений"""
-        for sec_code, row_code, col_code in self._schema.required:
-            rows = list(report.get_section(sec_code).get_rows(row_code))
-            if not rows:
-                raise EmptyRowError(sec_code, row_code)
-
-            for row in rows:
+        for sec_code, row_code, col_code in self.required:
+            for row in report.get_section(sec_code).get_rows(row_code):
+                if not row:
+                    raise EmptyRowError(sec_code, row_code)
                 if not row.get_column(col_code):
                     raise EmptyColumnError(sec_code, row_code, col_code)
 
     def _check_format(self, report):
         """Проверка формата строк и значений в них"""
         for section in report.iter():
+            specs = self.__get_specs(section.code)
+
             for row in section.iter():
-                self.__check_row(section.code, row.code, row)
-                self.__check_cells(section.code, row.code, row)
+                self.__check_specs(section.code, row, specs)
+                self.__check_cells(section.code, row)
 
-    def __check_row(self, sec_code, row_code, row):
+    # ---
+
+    def __check_specs(self, sec_code, row, specs):
         """Итерация по ожидаемым спецификам с их последующей проверкой"""
-        specs_map = self.__get_specs(sec_code)
-        for spec_key, col_code in specs_map.items():
-            self.__check_format(
-                (sec_code, row_code, col_code),
-                SpecInspector,
-                row,
-                spec_key,
-                specs_map,
-            )
+        for spec_key, col_code in specs.items():
+            coords = self.__get_coords(sec_code, row.code, col_code)
+            self.__check_format(SpecInspector, coords, row, specs, spec_key)
 
-    def __check_cells(self, sec_code, row_code, row):
+    def __check_cells(self, sec_code, row):
         """Итерация по значениям строки с их последующей проверкой"""
-        for column in row.iter():
-            self.__check_format(
-                (sec_code, row_code, column.code), ValueInspector, column.value
-            )
+        for col in row.iter():
+            coords = self.__get_coords(sec_code, row.code, col.code)
+            self.__check_format(ValueInspector, coords, col)
 
-    def __check_format(self, coords, inspector_class, *args):
-        """Инициализация инспектора, проверка"""
-        inspector = inspector_class(
-            self.__get_format(*coords), self._schema.catalogs
-        )
-        inspector.check(coords, *args)
+    def __check_format(self, inspector, coords, *args):
+        """Инициализация инспектора, проверка, обработка исключения"""
+        try:
+            inspector(self.catalogs, self.__get_format(*coords)).check(*args)
+        except FormatInspectorError as exc:
+            exc.update(coords)
+            raise
+
+    # ---
 
     def __get_format(self, sec_code, row_code, col_code):
         """Возвращает словарь с условиями проверки"""
         try:
-            return self._schema.formats[sec_code][row_code][col_code]
+            return self.formats[sec_code][row_code][col_code]
         except KeyError:
             raise NoRuleError(sec_code, row_code, col_code)
 
     def __get_specs(self, sec_code):
         """Возвращает словарь со спецификами"""
         try:
-            return self._schema.formats[sec_code]["specs"]
+            return self.formats[sec_code]["specs"]
         except KeyError:
             raise NoSectionTemplateError(sec_code)
