@@ -6,8 +6,9 @@ class TitleValidator(AbstractValidator):
     code = "2"
 
     def __init__(self, schema):
-        self.schema = schema
         self.errors = []
+
+        self.obj = schema.obj
 
         self.report_fields = []
         self.schema_fields = dict(self.__get_schema_fields(schema))
@@ -15,6 +16,7 @@ class TitleValidator(AbstractValidator):
     def __repr__(self):
         return (
             f"<TitleValidator "
+            f"obj={self.obj}"
             f"schema_fields={self.schema_fields} "
             f"report_fields={self.report_fields} "
             f"errors={self.errors}>"
@@ -27,14 +29,14 @@ class TitleValidator(AbstractValidator):
             yield item.get("field"), item.get("name")
 
     @staticmethod
-    def __is_valid_okpo(value):
-        """Проверка формата ОКПО"""
-        return len(value) in (8, 10, 14) and value.isdigit()
+    def __is_valid_object(value):
+        """Проверка формата ключевого поля"""
+        return len(value) >= 8 and value.isdigit()
 
     def validate(self, report):
         self._check_common_rules(report)
-        self._check_required_field()
-        self._drop_required_field()
+        self._check_object_field(report)
+        self._drop_object_field()
         self._check_missing_fields()
 
         return not bool(self.errors)
@@ -45,13 +47,12 @@ class TitleValidator(AbstractValidator):
             self.__check_extra(field)
             self.__check_dup(field)
             self.__check_value(field, value)
-            self.__check_okpo(field, value)
 
             self.report_fields.append(field)
 
-    def _drop_required_field(self):
+    def _drop_object_field(self):
         """Удаление ключевого поля, чтобы не мешало следующей проверке"""
-        del self.schema_fields[self.schema.obj]
+        del self.schema_fields[self.obj]
 
     def _fmt(self, field):
         """Форматированные название и идентификатор поля"""
@@ -71,21 +72,18 @@ class TitleValidator(AbstractValidator):
 
     def __check_value(self, field, value):
         """Проверка значения в поле"""
-        if not value:
+        if field != self.obj and not value:
             self.error(f"Отсутствует значение в поле {self._fmt(field)}", "3")
-
-    def __check_okpo(self, field, value):
-        """Проверка формата ОКПО"""
-        if field == self.schema.obj and not self.__is_valid_okpo(value):
-            self.error("Код ОКПО должен быть длиной 8, 10 или 14 цифр", "4")
 
     # ---
 
-    def _check_required_field(self):
-        """Проверка наличия ключевого поля в заголовке"""
-        if self.schema.obj not in self.report_fields:
+    def _check_object_field(self, report):
+        """Проверка ключевого поля в заголовке"""
+        if self.obj not in report.title:
+            self.error(f"Отсутствует ключевое поле {self._fmt(self.obj)}", "4")
+        elif not self.__is_valid_object(report.title.get(self.obj)):
             self.error(
-                f"Отсутствует ключевое поле {self._fmt(self.schema.obj)}", "5"
+                f"Неверный формат ключевого поля {self._fmt(self.obj)}", "5"
             )
 
     def _check_missing_fields(self):
