@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### [2.0.0a12] - 2024-08-23
+- Рефакторинг и микрооптимизации `ControlValidator`, `FormulaInspector`, `PeriodInspector`.
+- Сделана передача дополнительных параметров в класс трансформер.
+    - Задел на будущее.
+
 ### [2.0.0a11] - 2024-08-21
 - Рефакторинг `FormatValidator`,`SpecInspector`,`ValueInspector`.
     - Микрооптимизации.

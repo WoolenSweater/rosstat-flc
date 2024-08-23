@@ -27,15 +27,17 @@ def flatten_mixed(lst):
 
 
 class ControlExpr(Transformer):
-    def __init__(self, report, params):
+    def __init__(self, report, type, schema, control):
         super().__init__(visit_tokens=False)
         self._report = report
-        self._params = params
+        self._type = type
 
-        self._fault = params.fault
-        self._dimension = params.dimension
+        self._fault = control.fault
+        self._formats = schema.formats
+        self._catalogs = schema.catalogs
+        self._dimension = schema.dimension
 
-        self._round = partial(round_, decimals=params.precision)
+        self._round = partial(round_, decimals=control.precision)
 
     def __default__(self, data, children, meta):
         return children
@@ -86,7 +88,7 @@ class ControlExpr(Transformer):
     def _bool_expr(self, left, op, right):
         result, left, right = self.__exact_expr(left, op, right)
         if not result.all():
-            raise ControlFault(1, left, right, op)
+            raise ControlFault(left, right, 1)
         return result
 
     @v_args(inline=True)
@@ -94,7 +96,7 @@ class ControlExpr(Transformer):
         result, left, right = self.__approx_expr(left, op, right)
         if not result.all():
             if ((delta := abs(left - right)) >= self._fault).any():
-                raise ControlFault(delta, left, right, op)
+                raise ControlFault(left, right, delta)
         return result
 
     # ---

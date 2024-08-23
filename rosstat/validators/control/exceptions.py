@@ -27,22 +27,11 @@ class NoFormatForRowError(StopEvaluation):
 
 
 class ControlFault(StopEvaluation):
-    def __init__(self, delta, left, right, op):
-        self.left = left
-        self.right = right
-        self.delta = delta
-        self.op = op
-
-    def dict(self):
-        return {
-            "left": float(self.left),
-            "operator": str(self.op),
-            "right": float(self.right),
-            "delta": float(self.delta),
-        }
+    def __init__(self, left, right, delta):
+        self.left = float(left)
+        self.right = float(right)
+        self.delta = float(delta)
 
 
 class PrevPeriodNotImpl(ControlError):
-    def __init__(self, id):
-        self.id = id
-        self.msg = "Проверка со значениями из прошлого периода не реализована"
+    msg = "Проверка со значениями из прошлого периода невозможна"

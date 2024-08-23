@@ -1,5 +1,6 @@
 from ..base import AbstractValidator
 from .exceptions import PrevPeriodNotImpl
+from .helpers import Control
 from .inspectors import FormulaInspector, PeriodInspector
 
 
@@ -8,20 +9,19 @@ class ControlValidator(AbstractValidator):
     code = "4"
 
     def __init__(self, schema):
-        self._schema = schema
+        self.schema = schema
         self.errors = []
 
-        self._template = (
-            "{control_name}; слева {left} {operator} "
-            "справа {right} разница {delta}"
-        )
-
     def __repr__(self):
-        return "<ControlValidator errors={errors}>".format(**self.__dict__)
+        return f"<ControlValidator errors={self.errors}>"
 
-    def __fmt_control(self, ctrl, name):
+    @staticmethod
+    def _fmt(control, err):
         """Форматирование сообщения о непройденном контроле"""
-        return self._template.format(control_name=name, **ctrl)
+        return (
+            f"{control.name}; "
+            f"слева {err.left} справа {err.right} разница {err.delta}"
+        )
 
     def validate(self, report):
         self._check_controls(report)
@@ -30,34 +30,23 @@ class ControlValidator(AbstractValidator):
 
     def _check_controls(self, report):
         """Проверка отчёта по контролям"""
-        if report.blank:
-            return
-
-        for control in self._schema.controls:
-            self._check_control(report, control)
+        if not report.blank:
+            for control in map(Control, self.schema.controls):
+                self._check_control(report, control)
 
     def _check_control(self, report, control):
         """Обёртка для обработки исключения"""
         try:
             if self.__check_period(report, control):
                 self.__check_control(report, control)
-        except PrevPeriodNotImpl as ex:
-            self.error(ex.msg, ex.id, level=0)
+        except PrevPeriodNotImpl as exc:
+            self.error(exc.msg, control.id, level=0)
 
     def __check_period(self, report, control):
         """Проверка соответствия периода контроля периоду в отчёте"""
-        inspector = PeriodInspector(control)
-        return inspector.check(report)
+        return PeriodInspector(control).check(report)
 
     def __check_control(self, report, control):
         """Проверка контрольных значений отчёта"""
-        inspector = FormulaInspector(
-            control,
-            alerts=self._schema.alerts,
-            formats=self._schema.formats,
-            catalogs=self._schema.catalogs,
-            dimension=self._schema.dimension,
-        )
-        if (ctrl := inspector.check(report)) is not None:
-            message = self.__fmt_control(ctrl.dict(), inspector.name)
-            self.error(message, inspector.id, level=inspector.tip)
+        if err := FormulaInspector(control, self.schema).check(report):
+            self.error(self._fmt(control, err), control.id, level=control.tip)

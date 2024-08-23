@@ -34,7 +34,7 @@ class FormatValidator(AbstractValidator):
         )
 
     @staticmethod
-    def __fmt(specs):
+    def _fmt(specs):
         """Форматирование специфик"""
         return " ".join(f"s{i}={s}" for i, s in enumerate(specs, 1) if s)
 
@@ -49,8 +49,8 @@ class FormatValidator(AbstractValidator):
             self._check_duplicates(report)
             self._check_required(report)
             self._check_format(report)
-        except FormatError as ex:
-            self.error(ex.msg, ex.code)
+        except FormatError as exc:
+            self.error(exc.msg, exc.code)
 
         return not bool(self.errors)
 
@@ -66,7 +66,7 @@ class FormatValidator(AbstractValidator):
                 if counter > 1:
                     row_code, *specs = row
                     if any(specs):
-                        row_code = f"{row_code} {self.__fmt(specs)}"
+                        row_code = f"{row_code} {self._fmt(specs)}"
                     raise DuplicateError(section.code, row_code, counter)
 
     def _check_required(self, report):

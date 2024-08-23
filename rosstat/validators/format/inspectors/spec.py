@@ -34,4 +34,5 @@ class SpecInspector(BaseFormatInspector):
             raise SpecValueError()
 
     def __get_spec_by_col(self, specs, col_code):
+        """Получение ключа специфики по коду колонки"""
         return next(key for key, col in specs.items() if col == col_code)

@@ -9,5 +9,5 @@ def parse(control):
     return parser.parse(control.lower())
 
 
-def transform(report, tree, params):
-    return ControlExpr(report, params).transform(tree)
+def transform(tree, report, type, schema, control):
+    return ControlExpr(report, type, schema, control).transform(tree)

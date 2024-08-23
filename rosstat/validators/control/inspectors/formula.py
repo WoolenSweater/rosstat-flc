@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from lark.exceptions import UnexpectedCharacters, UnexpectedToken, VisitError
 
 from ..exceptions import (
@@ -8,44 +6,17 @@ from ..exceptions import (
     PrevPeriodNotImpl,
     RuleExprError,
 )
+from ..helpers import Formula
 from ..parser import parse, transform
 
 
-@dataclass
-class ControlParams:
-    precision: int
-    fault: float
-    formats: dict
-    catalogs: dict
-    dimension: dict
-
-
 class FormulaInspector:
-    def __init__(self, control, *, formats, catalogs, dimension, alerts=False):
-        self.alerts = alerts
-
-        self.id = control.attrib["id"]
-        self.name = control.attrib["name"]
-        self.rule = control.attrib["rule"]
-        self.condition = control.attrib["condition"]
-
-        self.tip = int(control.attrib.get("tip", "1"))
-        self.fault = float(control.attrib.get("fault", "0"))
-        self.precision = int(control.attrib.get("precision", "2"))
-
-        self.params = self.__params(formats, catalogs, dimension)
-
-    def __params(self, formats, catalogs, dimension):
-        return ControlParams(
-            self.precision, self.fault, formats, catalogs, dimension
-        )
+    def __init__(self, control, schema):
+        self.schema = schema
+        self.control = control
 
     def __repr__(self):
-        return (
-            f"<FormulaInspector id={self.id} tip={self.tip} "
-            f"fault={self.fault} precision={self.precision} "
-            f"condition={self.condition} rule={self.rule}>"
-        )
+        return f"<FormulaInspector control={self.control}>"
 
     def check(self, report):
         if self._check_condition(report) is None:
@@ -53,17 +24,21 @@ class FormulaInspector:
 
     def _check_condition(self, report):
         """Проверка условия контроля"""
-        return self._check_formula(report, self.condition, ConditionExprError)
+        return self._check_formula(
+            report, self.control.condition, Formula(0), ConditionExprError
+        )
 
     def _check_rule(self, report):
         """Проверка правила"""
-        return self._check_formula(report, self.rule, RuleExprError)
+        return self._check_formula(
+            report, self.control.rule, Formula(1), RuleExprError
+        )
 
-    def _check_formula(self, report, formula, exc):
+    def _check_formula(self, report, formula, type, exc):
         """Проверка, парсинг и применение формулы на отчёт"""
         try:
-            if formula and not self._is_previous_period(formula):
-                self.__check(report, self.__parse(formula, exc))
+            if formula and not self.__is_previous_period(formula):
+                self.__check(self.__parse(formula, exc), report, type)
         except ControlFault as exc:
             return exc
 
@@ -72,21 +47,21 @@ class FormulaInspector:
         try:
             return parse(formula)
         except (UnexpectedCharacters, UnexpectedToken):
-            raise exc(self.id)
+            raise exc(self.control.id)
 
-    def __check(self, report, tree):
+    def __check(self, tree, report, type):
         """Выполнение проверки"""
         try:
-            transform(report, tree, self.params)
+            transform(tree, report, type, self.schema, self.control)
         except VisitError as exc:
             raise exc.orig_exc
 
-    def _is_previous_period(self, formula):
+    def __is_previous_period(self, formula):
         """
         Две фигурные скобки говорят о том, что значение необходимо брать из
         отчёта за прошлый период. Такой функционал не будет реализован
         """
         if "{{" in formula:
-            if self.alerts:
-                raise PrevPeriodNotImpl(self.id)
+            if self.schema.alerts:
+                raise PrevPeriodNotImpl()
             return True

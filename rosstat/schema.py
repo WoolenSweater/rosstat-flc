@@ -29,8 +29,12 @@ class Schema:
 
     def __repr__(self):
         return (
-            f"<Schema idp={self.idp} obj={self.obj} alerts={self.alerts} "
-            f"formats={self.formats.keys()} catalogs={self.catalogs.keys()}>"
+            f"<Schema "
+            f"idp={self.idp} "
+            f"obj={self.obj} "
+            f"alerts={self.alerts} "
+            f"formats={self.formats.keys()} "
+            f"catalogs={self.catalogs.keys()}>"
         )
 
     def _get_idp(self):
