@@ -27,10 +27,11 @@ class NoFormatForRowError(StopEvaluation):
 
 
 class ControlFault(StopEvaluation):
-    def __init__(self, left, right, delta):
-        self.left = float(left)
-        self.right = float(right)
-        self.delta = float(delta)
+    def __init__(self, operation, left, right, delta):
+        self.operation = operation
+        self.left = left
+        self.right = right
+        self.delta = delta
 
 
 class PrevPeriodNotImpl(ControlError):

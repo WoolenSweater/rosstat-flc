@@ -1,43 +1,50 @@
 import operator
 
-from numpy import around, nan_to_num, nanmin, nansum, trunc
+from numpy import floor, frompyfunc, place, round, sum, trunc
+
+from .dtype import nan, nfloat
+
+# -- service --
+
+innerarray = operator.itemgetter(0)
+isnan = frompyfunc(lambda item: item.isnan(), 1, 1)
+
+# -- user --
 
 
 def round_(array, decimals, mode=0):
     if mode:
         return trunc(array)
     else:
-        return around(array, decimals=int(decimals))
+        return round(array, decimals=decimals)
 
 
 def sum_(array, ctx):
-    if isinstance(ctx, float):
-        return nansum(array)
+    if isinstance(ctx, nfloat):
+        return sum(array)
     elif array.coords.rows == ctx.coords.rows:
-        return nansum(array, axis=1)
+        return sum(array, axis=1)
     elif array.coords.cols == ctx.coords.cols:
-        return nansum(array, axis=0)
+        return sum(array, axis=0)
     else:
-        return nansum(array)
+        return sum(array)
 
 
 def coalesce_(*arrays):
-    return next(filter(arrays), None)
+    return next(filter(arrays), nan)
 
 
 def nullif_(array1, array2):
-    None if array1 == array2 else array1
+    return nan if array1 == array2 else array1
 
 
 def floor_(array):
-    return nanmin(array)
+    return floor(array)
 
 
-def isnull_(array, nan):
-    return nan_to_num(array, nan=nan)
-
-
-innerarray = operator.itemgetter(0)
+def isnull_(array, val):
+    place(array, isnan(array), nfloat(val))
+    return array
 
 
 FUNCTION_MAP = {

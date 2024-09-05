@@ -29,8 +29,8 @@ class Column:
     code: str
     value: str = None
 
-    def __bool__(self):
-        return bool(self.value)
+    def __float__(self):
+        return float(self.value or "nan")
 
 
 @dataclass
@@ -38,9 +38,6 @@ class Row(CodeIterable):
     code: str
     specs: dict[str, str] = field(default_factory=dict)
     columns: dict[str, Column] = field(default_factory=dict)
-
-    def __bool__(self):
-        return bool(self.columns)
 
     def add(self, column):
         """Добавление колонки в строку"""

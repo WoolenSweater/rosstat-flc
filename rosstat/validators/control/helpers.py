@@ -11,8 +11,8 @@ class Control:
         self.id = control.get("id")
         self.name = control.get("name")
 
-        self.rule = control.get("rule")
-        self.condition = control.get("condition")
+        self.rule = control.get("rule").strip()
+        self.condition = control.get("condition").strip()
         self.period = control.get("periodClause")
 
         self.tip = int(control.get("tip", "1"))

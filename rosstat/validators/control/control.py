@@ -20,7 +20,8 @@ class ControlValidator(AbstractValidator):
         """Форматирование сообщения о непройденном контроле"""
         return (
             f"{control.name}; "
-            f"слева {err.left} справа {err.right} разница {err.delta}"
+            f"слева {err.left} {err.operation} "
+            f"справа {err.right} разница {err.delta}"
         )
 
     def validate(self, report):

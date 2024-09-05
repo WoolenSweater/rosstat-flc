@@ -1,5 +1,7 @@
 from numpy import asarray, ndarray
 
+from .dtype import nfloat
+
 
 class All(str):
     def __repr__(self):
@@ -28,17 +30,13 @@ class Coords:
 
 class Element(ndarray):
     def __new__(cls, coords, specs, values):
-        obj = asarray(values, dtype=float).view(cls)
+        obj = asarray(values, dtype=nfloat).view(cls)
         obj.coords = coords
         obj.specs = specs
         return obj
 
     def __array_finalize__(self, obj):
-        if not hasattr(self, "errors"):
-            self.errors = set()
-
         if obj is not None:
-            self.errors |= getattr(obj, "errors", set())
             self.coords = getattr(obj, "coords", None)
             self.specs = getattr(obj, "specs", None)
 

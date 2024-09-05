@@ -27,7 +27,7 @@ class PeriodInspector:
             .replace("&np", report.period),
         )
 
-    def evel(self, expr):
+    def eval(self, expr):
         """Вычисление выражения"""
         try:
             return eval(expr)

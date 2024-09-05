@@ -3,14 +3,15 @@ from functools import partial
 from lark import Transformer
 from lark.visitors import v_args
 
-from rosstat.validators.control.exceptions import ControlFault
-from rosstat.validators.control.parser.entities import (
+from ..exceptions import ControlFault
+from .dtype import nfloat
+from .entities import (
     All,
     Coords,
     Element,
     Specs,
 )
-from rosstat.validators.control.parser.functions import (
+from .functions import (
     FUNCTION_MAP,
     innerarray,
     round_,
@@ -88,7 +89,7 @@ class ControlExpr(Transformer):
     def _bool_expr(self, left, op, right):
         result, left, right = self.__exact_expr(left, op, right)
         if not result.all():
-            raise ControlFault(left, right, 1)
+            raise ControlFault(op, left, right, 1)
         return result
 
     @v_args(inline=True)
@@ -96,7 +97,7 @@ class ControlExpr(Transformer):
         result, left, right = self.__approx_expr(left, op, right)
         if not result.all():
             if ((delta := abs(left - right)) >= self._fault).any():
-                raise ControlFault(left, right, delta)
+                raise ControlFault(op, left, right, delta)
         return result
 
     # ---
@@ -129,7 +130,7 @@ class ControlExpr(Transformer):
     # ---
 
     def num(self, children):
-        return float(self._pop(children))
+        return nfloat(self._pop(children))
 
     def code(self, children):
         return int(self._pop(children))
@@ -166,5 +167,5 @@ class ControlExpr(Transformer):
         sec = self._report.get_section(coords.section)
         dim = self._dimension.get(coords.section)
 
-        for row in sec.iter(coords.rows or dim["rows"]):
-            yield [col.value for col in row.iter(coords.cols or dim["cols"])]
+        for row in sec.iter(coords.rows or dim.rows):
+            yield [nfloat(col) for col in row.iter(coords.cols or dim.cols)]
