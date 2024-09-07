@@ -1,6 +1,6 @@
 import operator
 
-from numpy import floor, frompyfunc, place, round, sum, trunc
+from numpy import atleast_1d, floor, frompyfunc, place, round, sum, trunc
 
 from .dtype import nan, nfloat
 
@@ -19,8 +19,8 @@ def round_(array, decimals, mode=0):
         return round(array, decimals=decimals)
 
 
-def sum_(array, ctx):
-    if isinstance(ctx, nfloat):
+def sum_(array, ctx=None):
+    if isinstance(ctx, nfloat | None):
         return sum(array)
     elif array.coords.rows == ctx.coords.rows:
         return sum(array, axis=1)
@@ -31,7 +31,7 @@ def sum_(array, ctx):
 
 
 def coalesce_(*arrays):
-    return next(filter(arrays), nan)
+    return next(filter(lambda array: not isnan(array).any(), arrays), nan)
 
 
 def nullif_(array1, array2):
@@ -43,7 +43,7 @@ def floor_(array):
 
 
 def isnull_(array, val):
-    place(array, isnan(array), nfloat(val))
+    place(array := atleast_1d(array), isnan(array), nfloat(val))
     return array
 
 

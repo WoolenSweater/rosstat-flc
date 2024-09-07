@@ -17,6 +17,13 @@ def coerce(func):
     return wrapper
 
 
+def npbool(func):
+    def wrapper(*args):
+        return NPBOOL[func(*args)]
+
+    return wrapper
+
+
 class nfloat:
     def __init__(self, value):
         self.value = float(value)
@@ -26,9 +33,6 @@ class nfloat:
 
     def __str__(self):
         return str(self.value)
-
-    def __bool__(self):
-        return bool(self.value)
 
     def __index__(self):
         return int(self.value)
@@ -44,23 +48,25 @@ class nfloat:
         self.value = abs(self.value)
         return self
 
-    def isnan(self):
-        return isnan(self.value)
-
     def view(self, cls):
         return cls(self)
 
     def rint(self):
         return self if self.isnan() else nfloat(round(self.value))
 
+    @npbool
+    def isnan(self):
+        return isnan(self.value)
+
+    @npbool
     def _cmp(self, func, other):
         if self.isnan() and other.isnan():
-            return NPBOOL[True]
+            return True
 
         sv = 0 if self.isnan() else self.value
         ov = 0 if other.isnan() else other.value
 
-        return NPBOOL[func(sv, ov)]
+        return func(sv, ov)
 
     def _add(self, other):
         if not self.isnan():

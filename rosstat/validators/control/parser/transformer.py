@@ -57,7 +57,7 @@ class ControlExpr(Transformer):
 
     # ---
 
-    def _call_partial(self, operand, ctx):
+    def _call_partial(self, operand, ctx=None):
         if isinstance(operand, partial):
             if isinstance(ctx, partial):
                 ctx = innerarray(ctx.args)
@@ -102,11 +102,13 @@ class ControlExpr(Transformer):
 
     # ---
 
-    def function(self, children):
-        return FUNCTION_MAP.get(children[0])(*children[1])
+    @v_args(inline=True)
+    def function(self, func, params):
+        return FUNCTION_MAP.get(func)(*map(self._call_partial, params))
 
-    def sum(self, children):
-        return partial(sum_, self._pop(children))
+    @v_args(inline=True)
+    def sum(self, elem):
+        return partial(sum_, elem)
 
     # ---
 
