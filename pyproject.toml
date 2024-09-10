@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rosstat-flc"
-version = "2.0.0a15"
+version = "2.0.0a16"
 description = "Tool for format-logistic control of reports sent to RosStat"
 authors = ["Никита Рябинин <ryabinin.ne@gmail.com>"]
 license = "MIT"

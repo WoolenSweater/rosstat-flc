@@ -6,7 +6,6 @@ from lark.visitors import v_args
 from ..exceptions import ControlFault
 from .dtype import nfloat
 from .entities import (
-    All,
     Coords,
     Element,
     Specs,
@@ -17,14 +16,6 @@ from .functions import (
     round_,
     sum_,
 )
-
-
-def flatten_mixed(lst):
-    for item in lst:
-        if isinstance(item, (int, str, All)):
-            yield item
-        else:
-            yield from item
 
 
 class ControlExpr(Transformer):
@@ -50,10 +41,6 @@ class ControlExpr(Transformer):
     @staticmethod
     def _pop(children):
         return children.pop()
-
-    @staticmethod
-    def _flatten(children):
-        return list(map(str, flatten_mixed(children)))
 
     # ---
 
@@ -119,55 +106,29 @@ class ControlExpr(Transformer):
 
     func_name = _pop
 
-    section = _pop
-    row = _flatten
-    column = _flatten
-    spec = _flatten
+    code = _pop
+    ident = _pop
+    all = _pop
 
     math_term = _math_expr
     math_factor = _math_expr
     bool_expr = _bool_expr
     logic_expr = _logic_expr
 
-    # ---
-
     def num(self, children):
         return nfloat(self._pop(children))
 
-    def code(self, children):
-        return int(self._pop(children))
-
-    def ident(self, children):
-        return str(self._pop(children))
-
-    def all(self, children):
-        return All()
-
-    @v_args(inline=True)
-    def range(self, start, end):
-        return range(start, end + 1)
-
-    @v_args(inline=True)
-    def slice(self, start, end):
-        start = self._specs.index(start)
-        end = self._specs.index(end)
-
-        return self._specs[start : end + 1]
-
     # ---
 
     @v_args(inline=True)
-    def specs(self, s1=None, s2=None, s3=None):
-        return Specs(s1, s2, s3)
-
-    @v_args(inline=True)
     def element(self, section, rows, cols, specs=None):
-        coords = Coords(str(section), rows, cols)
-        return Element(coords, specs, list(self._read_report(coords)))
+        coords = Coords.create(section, rows, cols, self._dimension)
+        specs = Specs.create(specs, coords, self._catalogs, self._formats)
 
-    def _read_report(self, coords):
+        return Element(coords, specs, list(self._read_report(coords, specs)))
+
+    def _read_report(self, coords, specs):
         sec = self._report.get_section(coords.section)
-        dim = self._dimension.get(coords.section)
 
-        for row in sec.iter(coords.rows or dim.rows):
-            yield [nfloat(col) for col in row.iter(coords.cols or dim.cols)]
+        for row in sec.iter(coords.rows, specs):
+            yield [nfloat(col) for col in row.iter(coords.cols)]

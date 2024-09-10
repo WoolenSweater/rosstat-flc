@@ -124,12 +124,12 @@ class Schema:
             catalog_id = catalog.attrib.get("id")
 
             for term in catalog.iterfind("term"):
-                term_id = term.attrib.pop("id")
+                term_id = term.attrib.pop("id").lower()
 
                 catalogs[catalog_id].set(term_id)
 
-                for dic_id, dic_value in term.attrib.items():
-                    catalogs[catalog_id][term_id][dic_id].add(dic_value)
+                for dic_id, dic_val in term.attrib.items():
+                    catalogs[catalog_id][term_id][dic_id].add(dic_val.lower())
 
             catalogs[catalog_id].sort()
         return catalogs

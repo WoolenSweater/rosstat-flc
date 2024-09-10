@@ -16,12 +16,14 @@ def max_divider(num, terms):
 
 
 class CodeIterable:
-    def iter(self, codes=None):
+    def iter(self, codes=None, specs=None):
         """Получения итератора по элементам"""
         if codes is None:
             return self._iter_all()
-        else:
+        elif specs is None:
             return self._iter_codes(codes)
+        else:
+            return self._iter_codes(codes, specs)
 
 
 @dataclass
@@ -62,16 +64,14 @@ class Row(CodeIterable):
 
     def match(self, specs):
         """Проверка, входит ли строка в список переданных специфик"""
-        for spec in specs:
-            if spec == "*":
-                continue
-            elif self.get_spec(spec.key, spec.default) not in spec:
+        for key, spec in specs:
+            if spec and self.get_spec(key) not in spec:
                 return False
         return True
 
     def get_spec(self, key, default=None):
         """Возвращает указанную специфику строки"""
-        return self.specs.get(key, default)
+        return self.specs.get(key) or default
 
 
 @dataclass
@@ -91,10 +91,10 @@ class Section(CodeIterable):
         """Возвращает view-объект по всем строкам"""
         return self.rows.values()
 
-    def _iter_codes(self, codes):
+    def _iter_codes(self, codes, specs=None):
         """Возвращает итератор по строкам c указанными кодами"""
         for code in codes:
-            yield from self.get_rows(code)
+            yield from (row for row in self.get_rows(code) if row.match(specs))
 
     def get_rows(self, code):
         '''Возвращает список строк с указанным кодом"'''

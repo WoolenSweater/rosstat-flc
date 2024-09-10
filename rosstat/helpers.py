@@ -1,8 +1,12 @@
 from collections import defaultdict
 
 
+def _get_spec(xml, key):
+    return spec if (spec := xml.get(key)) is None else spec.lower()
+
+
 def read_specs(xml):
-    return {spec_key: xml.get(spec_key) for spec_key in ("s1", "s2", "s3")}
+    return {key: _get_spec(xml, key) for key in ("s1", "s2", "s3")}
 
 
 def str_int(v):
