@@ -64,7 +64,7 @@ class Row(CodeIterable):
 
     def match(self, specs):
         """Проверка, входит ли строка в список переданных специфик"""
-        for key, spec in specs:
+        for key, spec in specs.get(self.code):
             if spec and self.get_spec(key) not in spec:
                 return False
         return True

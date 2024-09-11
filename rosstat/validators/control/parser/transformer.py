@@ -123,7 +123,7 @@ class ControlExpr(Transformer):
     @v_args(inline=True)
     def element(self, section, rows, cols, specs=None):
         coords = Coords.create(section, rows, cols, self._dimension)
-        specs = Specs.create(specs, coords, self._catalogs, self._formats)
+        specs = Specs.create(coords, specs, self._catalogs, self._formats)
 
         return Element(coords, specs, list(self._read_report(coords, specs)))
 

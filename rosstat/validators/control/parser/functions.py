@@ -20,15 +20,14 @@ def round_(array, decimals, mode=0):
 
 
 def sum_(array, ctx=None):
-    if isinstance(ctx, nfloat | None):
+    if array.size == 0:
+        return nan
+    elif isinstance(ctx, nfloat | None):
         return sum(array)
     elif array.coords.rows == ctx.coords.rows:
-        return sum(array, axis=1)
+        return sum(array, axis=1, keepdims=True)
     elif array.coords.cols == ctx.coords.cols:
-        return sum(array, axis=0)
-    else:
-        return sum(array)
-
+        return sum(array, axis=0, keepdims=True)
 
 def coalesce_(*arrays):
     return next(filter(lambda array: not isnan(array).any(), arrays), nan)

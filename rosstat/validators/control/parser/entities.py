@@ -7,9 +7,6 @@ class Codes(list):
     def __repr__(self):
         return f"[{','.join(self or "*")}]"
 
-    def one(self):
-        return self[0]
-
 
 class Extendable:
     @classmethod
@@ -53,6 +50,10 @@ class Coords(Extendable):
     def __repr__(self):
         return f"<Coords [{self.section}]{self.rows}{self.cols}>"
 
+    def __iter__(self):
+        for row in self.rows:
+            yield self.section, row
+
     @classmethod
     def _extend(cls, section, rows, cols, dimension):
         sec = section.pop().lstrip("0")
@@ -63,33 +64,42 @@ class Coords(Extendable):
         yield Codes(cls._flatten(cols, dim.columns, strip=False))
 
 
-class Specs(Extendable):
+class Specs(dict):
+    def __repr__(self):
+        return f"<Specs {super().__repr__()}>"
+
+    @classmethod
+    def create(cls, coords, *args):
+        return cls((row, Spec.create(sec, row, *args)) for sec, row in coords)
+
+
+class Spec(Extendable):
     def __init__(self, s1, s2, s3):
         self.s1 = s1
         self.s2 = s2
         self.s3 = s3
 
     def __repr__(self):
-        return f"<Specs {self.s1}{self.s2}{self.s3}>"
+        return f"<Spec {self.s1}{self.s2}{self.s3}>"
 
     def __iter__(self):
         for key in ("s1", "s2", "s3"):
             yield key, getattr(self, key)
 
     @classmethod
-    def _extend(cls, specs, coords, catalogs, formats):
+    def _extend(cls, sec, row, specs, catalogs, formats):
         if specs is None:
             yield from cls._stubs()
         else:
-            yield from cls._catalogs(specs, coords, catalogs, formats)
+            yield from cls._catalogs(sec, row, specs, catalogs, formats)
 
     @staticmethod
     def _stubs():
         return (Codes() for i in range(3))
 
     @classmethod
-    def _catalogs(cls, specs, coords, catalogs, formats):
-        collection = cls._get_collections(coords, catalogs, formats)
+    def _catalogs(cls, sec, row, specs, catalogs, formats):
+        collection = cls._get_collections(sec, row, catalogs, formats)
         for i, spec in enumerate(specs):
             if spec:
                 yield Codes(cls._flatten(spec, collection[i]))
@@ -97,13 +107,13 @@ class Specs(Extendable):
                 yield Codes()
 
     @staticmethod
-    def _get_collections(coords, catalogs, formats):
-        sec = formats.get(coords.section)
-        row = sec.get(coords.rows.one())
+    def _get_collections(sec, row, catalogs, formats):
+        sec = formats.get(sec)
+        row = sec.get(row)
 
         dics = (row.get(col).get("dic") for col in sec.get("specs").values())
 
-        return [catalogs.get(dic).get("ids") for dic in dics]
+        return [catalogs.get(dic, {}).get("ids", []) for dic in dics]
 
 
 class Element(ndarray):
