@@ -4,6 +4,7 @@ from lark import Transformer
 from lark.visitors import v_args
 
 from ..exceptions import ControlFault
+from ..helpers import Formula
 from .dtype import nfloat
 from .entities import (
     Coords,
@@ -15,6 +16,7 @@ from .functions import (
     innerarray,
     round_,
     sum_,
+    xor,
 )
 
 
@@ -29,20 +31,36 @@ class ControlExpr(Transformer):
         self._catalogs = schema.catalogs
         self._dimension = schema.dimension
 
-        self._round = partial(round_, decimals=control.precision)
+        self._precision = partial(round_, decimals=control.precision)
 
     def __default__(self, data, children, meta):
         return children
 
+    @property
+    def _is_condition(self):
+        return self._type == Formula.CONDITION
+
+    @property
+    def _has_fault(self):
+        return self._fault > 0
+
     @staticmethod
-    def _pass(array):
-        return array
+    def _is_eq(op):
+        return op in {"<=", "=", "<>", ">="}
 
     @staticmethod
     def _pop(children):
         return children.pop()
 
     # ---
+
+    def _exec(self, op, *args):
+        return FUNCTION_MAP.get(op)(*args)
+
+    def _round(self, left, right):
+        left = self._precision(left)
+        right = self._precision(right)
+        return left, right
 
     def _call_partial(self, operand, ctx=None):
         if isinstance(operand, partial):
@@ -51,47 +69,53 @@ class ControlExpr(Transformer):
             return operand(ctx)
         return operand
 
-    def _call(self, left, right, func):
+    def _call(self, left, right):
         left = self._call_partial(left, right)
         right = self._call_partial(right, left)
-
-        return func(left), func(right)
-
-    def __exact_expr(self, left, op, right):
-        left, right = self._call(left, right, self._pass)
-
-        return FUNCTION_MAP.get(op)(left, right), left, right
-
-    def __approx_expr(self, left, op, right):
-        left, right = self._call(left, right, self._round)
-
-        return FUNCTION_MAP.get(op)(left, right), left, right
+        return left, right
 
     @v_args(inline=True)
     def _math_expr(self, left, op, right):
-        result, left, right = self.__exact_expr(left, op, right)
+        left, right = self._call(left, right)
+        result = self._exec(op, left, right)
         return result
 
     @v_args(inline=True)
     def _bool_expr(self, left, op, right):
-        result, left, right = self.__exact_expr(left, op, right)
-        if not result.all():
-            raise ControlFault(op, left, right, 1)
+        left, right = self._call(left, right)
+        result = self._exec(op, left, right)
+
+        self._check(op, left, right, result, 1)
+
         return result
 
     @v_args(inline=True)
     def _logic_expr(self, left, op, right):
-        result, left, right = self.__approx_expr(left, op, right)
-        if not result.all():
-            if ((delta := abs(left - right)) >= self._fault).any():
-                raise ControlFault(op, left, right, delta)
+        left, right = self._call(left, right)
+        left, right = self._round(left, right)
+        result = self._exec(op, left, right)
+
+        if self._is_condition:
+            self._check(op, left, right, result, 1)
+        elif self._has_fault and self._is_eq(op):
+            self._check(op, left, right, *self._xor(result, abs(left - right)))
+        else:
+            self._check(op, left, right, result, abs(left - right))
+
         return result
+
+    def _check(self, op, left, right, result, delta):
+        if not result.all():
+            raise ControlFault(op, left, right, delta)
+
+    def _xor(self, array, delta):
+        return xor(array, 0 < delta <= self._fault), delta
 
     # ---
 
     @v_args(inline=True)
     def function(self, func, params):
-        return FUNCTION_MAP.get(func)(*map(self._call_partial, params))
+        return self._exec(func, *map(self._call_partial, params))
 
     @v_args(inline=True)
     def sum(self, elem):

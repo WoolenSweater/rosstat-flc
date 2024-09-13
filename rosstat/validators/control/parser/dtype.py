@@ -1,5 +1,5 @@
 import operator
-from math import isnan
+from math import isnan, trunc
 
 from numpy import False_, True_
 
@@ -41,18 +41,26 @@ class nfloat:
         return self.value
 
     def __neg__(self):
-        self.value = -self.value
-        return self
+        return nfloat(-self.value)
 
     def __abs__(self):
-        self.value = abs(self.value)
+        return nfloat(abs(self.value))
+
+    def __round__(self, ndigits):
+        if not self.isnan():
+            return nfloat(round(self.value, ndigits))
+        return self
+
+    def __trunc__(self):
+        if not self.isnan():
+            return nfloat(trunc(self.value))
         return self
 
     def view(self, cls):
         return cls(self)
 
     def rint(self):
-        return self if self.isnan() else nfloat(round(self.value))
+        return round(self, 0)
 
     @npbool
     def isnan(self):
@@ -60,7 +68,7 @@ class nfloat:
 
     @npbool
     def _cmp(self, func, other):
-        if self.isnan() and other.isnan():
+        if func is operator.ne and self.isnan() and other.isnan():
             return True
 
         sv = 0 if self.isnan() else self.value

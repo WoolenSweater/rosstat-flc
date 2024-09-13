@@ -29,14 +29,14 @@
                 </tr>
                 <tr>
                     <td>5</td>
-                    <td>\</td>
+                    <td>/</td>
                     <td>nan</td>
                     <td>=</td>
                     <td>nan</td>
                 </tr>
                 <tr>
                     <td>5</td>
-                    <td>\</td>
+                    <td>/</td>
                     <td>0</td>
                     <td>=</td>
                     <td>nan</td>
@@ -64,10 +64,10 @@
                 </tr>
                 <tr>
                     <td>nan</td>
-                    <td>\</td>
+                    <td>/</td>
                     <td>5</td>
                     <td>=</td>
-                    <td>nan</td>
+                    <td>0</td>
                 </tr>
                 <tr>
                     <td>nan</td>
@@ -92,7 +92,7 @@
                 </tr>
                 <tr>
                     <td>nan</td>
-                    <td>\</td>
+                    <td>/</td>
                     <td>nan</td>
                     <td>=</td>
                     <td>nan</td>
@@ -260,14 +260,14 @@
                     <td>&lt;=</td>
                     <td>nan</td>
                     <td>-</td>
-                    <td>false</td>
+                    <td>true</td>
                 </tr>
                 <tr>
                     <td>nan</td>
                     <td>&lt;</td>
                     <td>nan</td>
                     <td>-</td>
-                    <td>true</td>
+                    <td>false</td>
                 </tr>
             </table>
         </td>

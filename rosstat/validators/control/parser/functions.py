@@ -1,22 +1,24 @@
 import operator
 
-from numpy import atleast_1d, floor, frompyfunc, place, round, sum, trunc
+from numpy import atleast_1d, floor, frompyfunc, logical_xor, place, sum, trunc
 
 from .dtype import nan, nfloat
 
 # -- service --
 
+xor = logical_xor
 innerarray = operator.itemgetter(0)
 isnan = frompyfunc(lambda item: item.isnan(), 1, 1)
+around = frompyfunc(lambda item, decimals: round(item, decimals), 2, 1)
 
 # -- user --
 
 
 def round_(array, decimals, mode=0):
     if mode:
-        return trunc(array)
+        return trunc(array, atleast_1d(array))
     else:
-        return round(array, decimals=decimals)
+        return around(array, decimals)
 
 
 def sum_(array, ctx=None):
