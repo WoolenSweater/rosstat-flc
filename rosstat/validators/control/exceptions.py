@@ -13,10 +13,6 @@ class NoSectionError(StopEvaluation):
     """Прерывание проверки при отсутствии раздела из формулы контроля"""
 
 
-class EmptyElementError(StopEvaluation):
-    """Прерывание проверки при полном отсутствии данных"""
-
-
 class ConditionCheckFailed(StopEvaluation):
     """Прерывание проверки условия при отсутствии положительных результатов"""
 

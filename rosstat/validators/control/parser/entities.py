@@ -1,7 +1,7 @@
 from numpy import True_, asarray, ndarray
 
 from ..exceptions import NoSectionError
-from .dtype import nfloat
+from .dtype import nan, nfloat
 
 nptrue = True_
 
@@ -123,7 +123,7 @@ class Spec(Extendable):
 
 class Element(ndarray):
     def __new__(cls, coords, specs, values):
-        obj = asarray(values, dtype=nfloat).view(cls)
+        obj = asarray(values or nan, dtype=nfloat).view(cls)
         obj.coords = coords
         obj.specs = specs
         return obj

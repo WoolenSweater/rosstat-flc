@@ -3,11 +3,7 @@ from functools import partial
 from lark import Transformer
 from lark.visitors import v_args
 
-from ..exceptions import (
-    ConditionCheckFailed,
-    EmptyElementError,
-    RuleCheckFailed,
-)
+from ..exceptions import ConditionCheckFailed, RuleCheckFailed
 from ..helpers import Formula
 from .dtype import nfloat
 from .entities import (
@@ -31,13 +27,13 @@ class ControlExpr(Transformer):
         super().__init__(visit_tokens=False)
         self._type = type
         self._report = report
+        self._mask = mask
 
         self._fault = control.fault
         self._formats = schema.formats
         self._catalogs = schema.catalogs
         self._dimension = schema.dimension
 
-        self._mask = partial(cover, mask=mask)
         self._precision = partial(round_, decimals=control.precision)
 
     def __default__(self, data, children, meta):
@@ -71,6 +67,11 @@ class ControlExpr(Transformer):
         left = self._precision(left)
         right = self._precision(right)
         return left, right
+
+    def _cover(self, array):
+        if array.size == self._mask.size:
+            return cover(array, mask=self._mask)
+        return array
 
     def _call_partial(self, operand, ctx=None):
         if isinstance(operand, partial):
@@ -110,7 +111,7 @@ class ControlExpr(Transformer):
 
         if self._is_rule:
             delta = self._delta(left, right)
-            result = self._mask(result)
+            result = self._cover(result)
             result = self._variance(result, delta, op)
             self._check_all(result, delta, op, left, right)
         else:
@@ -174,8 +175,4 @@ class ControlExpr(Transformer):
     def element(self, section, rows, cols, specs=None):
         coords = Coords.create(section, rows, cols, self._dimension)
         specs = Specs.create(coords, specs, self._catalogs, self._formats)
-        elem = Element.create(coords, specs, self._report)
-
-        if elem.size == 0:
-            raise EmptyElementError()
-        return elem
+        return Element.create(coords, specs, self._report)
