@@ -27,6 +27,7 @@ def npbool(func):
 class nfloat:
     def __init__(self, value):
         self.value = float(value)
+        self.shape = ()
 
     def __repr__(self):
         return f"n{repr(self.value)}"

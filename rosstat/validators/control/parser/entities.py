@@ -1,6 +1,9 @@
-from numpy import asarray, ndarray
+from numpy import True_, asarray, ndarray
 
+from ..exceptions import NoSectionError
 from .dtype import nfloat
+
+nptrue = True_
 
 
 class Codes(list):
@@ -57,7 +60,9 @@ class Coords(Extendable):
     @classmethod
     def _extend(cls, section, rows, cols, dimension):
         sec = section.pop().lstrip("0")
-        dim = dimension.get(sec)
+
+        if (dim := dimension.get(sec)) is None:
+            raise NoSectionError()
 
         yield sec
         yield Codes(cls._flatten(rows, dim.rows, strip=True))
@@ -122,6 +127,17 @@ class Element(ndarray):
         obj.coords = coords
         obj.specs = specs
         return obj
+
+    @classmethod
+    def create(cls, coords, specs, report):
+        return cls(coords, specs, list(cls._read(coords, specs, report)))
+
+    @staticmethod
+    def _read(coords, specs, report):
+        sec = report.get_section(coords.section)
+
+        for row in sec.iter(coords.rows, specs):
+            yield [nfloat(col) for col in row.iter(coords.cols)]
 
     def __array_finalize__(self, obj):
         if obj is not None:

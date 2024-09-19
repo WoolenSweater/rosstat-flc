@@ -1,11 +1,22 @@
 import operator
 
-from numpy import atleast_1d, floor, frompyfunc, logical_xor, place, sum, trunc
+from numpy import (
+    atleast_1d,
+    floor,
+    frompyfunc,
+    logical_xor,
+    ma,
+    place,
+    sum,
+    trunc,
+)
 
 from .dtype import nan, nfloat
 
 # -- service --
 
+getmask = ma.getmask
+cover = ma.array
 xor = logical_xor
 innerarray = operator.itemgetter(0)
 isnan = frompyfunc(lambda item: item.isnan(), 1, 1)
@@ -26,10 +37,13 @@ def sum_(array, ctx=None):
         return nan
     elif isinstance(ctx, nfloat | None):
         return sum(array)
-    elif array.coords.rows == ctx.coords.rows:
-        return sum(array, axis=1, keepdims=True)
     elif array.coords.cols == ctx.coords.cols:
         return sum(array, axis=0, keepdims=True)
+    elif array.coords.rows == ctx.coords.rows:
+        return sum(array, axis=1, keepdims=True)
+    else:
+        return sum(array)
+
 
 def coalesce_(*arrays):
     return next(filter(lambda array: not isnan(array).any(), arrays), nan)

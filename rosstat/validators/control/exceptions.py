@@ -1,38 +1,52 @@
-class ControlError(Exception):
+class BaseControlError(Exception):
     pass
 
 
-class PeriodExprError(ControlError):
-    """Ошибка разбора формулы проверки периодичности"""
+# ---
 
 
-class ConditionExprError(ControlError):
-    """Ошибка разбора условия контроля"""
-
-
-class RuleExprError(ControlError):
-    """Ошибка разбора правила контроля"""
-
-
-class StopEvaluation(ControlError):
+class StopEvaluation(BaseControlError):
     """Прерывание проверки контроля"""
 
 
-class NoElemToCompareError(StopEvaluation):
-    """Нет элемента для сравнения"""
+class NoSectionError(StopEvaluation):
+    """Прерывание проверки при отсутствии раздела из формулы контроля"""
 
 
-class NoFormatForRowError(StopEvaluation):
-    """Нет формата для строки из формулы контроля"""
+class EmptyElementError(StopEvaluation):
+    """Прерывание проверки при полном отсутствии данных"""
 
 
-class ControlFault(StopEvaluation):
+class ConditionCheckFailed(StopEvaluation):
+    """Прерывание проверки условия при отсутствии положительных результатов"""
+
+
+# ---
+
+
+class CriticalError(BaseControlError):
+    """Критическая ошибка проверки контроля"""
+
+
+class ConditionExprError(CriticalError):
+    """Ошибка разбора формулы условия контроля"""
+
+
+class RuleExprError(CriticalError):
+    """Ошибка разбора формулы правила контроля"""
+
+
+class PeriodExprError(CriticalError):
+    """Ошибка разбора формулы периодичности"""
+
+
+class PrevPeriodNotImpl(CriticalError):
+    msg = "Проверка со значениями из прошлого периода невозможна"
+
+
+class RuleCheckFailed(CriticalError):
     def __init__(self, operation, left, right, delta):
         self.operation = operation
         self.left = left
         self.right = right
         self.delta = delta
-
-
-class PrevPeriodNotImpl(ControlError):
-    msg = "Проверка со значениями из прошлого периода невозможна"

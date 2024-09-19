@@ -56,7 +56,7 @@ class FormatValidator(AbstractValidator):
 
     def _check_sections(self, report):
         """Проверка целостности отчёта"""
-        for section in report.sections.keys() - self.dimension.keys():
+        for section in self.dimension.keys() - report.sections.keys():
             raise NoSectionReportError(section)
 
     def _check_duplicates(self, report):

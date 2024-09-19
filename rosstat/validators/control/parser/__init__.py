@@ -1,13 +1,22 @@
 from lark import Lark
 
-from rosstat.validators.control.parser.transformer import ControlExpr
+from .entities import nptrue
+from .functions import getmask
+from .transformer import ControlExpr
 
-parser = Lark.open("grammar.lark", rel_to=__file__, strict=True, parser="lalr")
+__all__ = [
+    "nptrue",
+    "getmask",
+]
+
+parser = Lark.open(
+    "grammar.lark", parser="lalr", strict=True, cache=True, rel_to=__file__
+)
 
 
 def parse(control):
     return parser.parse(control.lower())
 
 
-def transform(tree, report, type, schema, control):
-    return ControlExpr(report, type, schema, control).transform(tree)
+def eval(tree, type, report, mask, schema, control):
+    return ControlExpr(type, report, mask, schema, control).transform(tree)

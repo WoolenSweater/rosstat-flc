@@ -3,7 +3,11 @@ from functools import partial
 from lark import Transformer
 from lark.visitors import v_args
 
-from ..exceptions import ControlFault
+from ..exceptions import (
+    ConditionCheckFailed,
+    EmptyElementError,
+    RuleCheckFailed,
+)
 from ..helpers import Formula
 from .dtype import nfloat
 from .entities import (
@@ -13,6 +17,8 @@ from .entities import (
 )
 from .functions import (
     FUNCTION_MAP,
+    cover,
+    getmask,
     innerarray,
     round_,
     sum_,
@@ -21,24 +27,25 @@ from .functions import (
 
 
 class ControlExpr(Transformer):
-    def __init__(self, report, type, schema, control):
+    def __init__(self, type, report, mask, schema, control):
         super().__init__(visit_tokens=False)
-        self._report = report
         self._type = type
+        self._report = report
 
         self._fault = control.fault
         self._formats = schema.formats
         self._catalogs = schema.catalogs
         self._dimension = schema.dimension
 
+        self._mask = partial(cover, mask=mask)
         self._precision = partial(round_, decimals=control.precision)
 
     def __default__(self, data, children, meta):
         return children
 
     @property
-    def _is_condition(self):
-        return self._type == Formula.CONDITION
+    def _is_rule(self):
+        return self._type == Formula.RULE
 
     @property
     def _has_fault(self):
@@ -56,6 +63,9 @@ class ControlExpr(Transformer):
 
     def _exec(self, op, *args):
         return FUNCTION_MAP.get(op)(*args)
+
+    def _delta(self, left, right):
+        return abs(left - right)
 
     def _round(self, left, right):
         left = self._precision(left)
@@ -83,11 +93,14 @@ class ControlExpr(Transformer):
     @v_args(inline=True)
     def _bool_expr(self, left, op, right):
         left, right = self._call(left, right)
-        result = self._exec(op, left, right)
+        result = self._exec(op, ~getmask(left), ~getmask(right))
 
-        self._check(op, left, right, result, 1)
+        if self._is_rule:
+            self._check_all(op, left, right, result, 1)
+        else:
+            self._check_any(result)
 
-        return result
+        return self._mask_operand(result, left, right)
 
     @v_args(inline=True)
     def _logic_expr(self, left, op, right):
@@ -95,21 +108,34 @@ class ControlExpr(Transformer):
         left, right = self._round(left, right)
         result = self._exec(op, left, right)
 
-        if self._is_condition:
-            self._check(op, left, right, result, 1)
-        elif self._has_fault and self._is_eq(op):
-            self._check(op, left, right, *self._xor(result, abs(left - right)))
+        if self._is_rule:
+            delta = self._delta(left, right)
+            result = self._mask(result)
+            result = self._variance(result, delta, op)
+            self._check_all(result, delta, op, left, right)
         else:
-            self._check(op, left, right, result, abs(left - right))
+            self._check_any(result)
 
+        return self._mask_operand(result, left, right)
+
+    def _variance(self, result, delta, op):
+        if self._has_fault and self._is_eq(op):
+            return xor(result, (0 < delta) & (delta <= self._fault))
         return result
 
-    def _check(self, op, left, right, result, delta):
+    def _check_all(self, result, delta, op, left, right):
         if not result.all():
-            raise ControlFault(op, left, right, delta)
+            raise RuleCheckFailed(op, left, right, delta)
 
-    def _xor(self, array, delta):
-        return xor(array, 0 < delta <= self._fault), delta
+    def _check_any(self, result):
+        if not result.any():
+            raise ConditionCheckFailed()
+
+    def _mask_operand(self, result, left, right):
+        if result.shape == right.shape:
+            return cover(right, mask=~result)
+        else:
+            return cover(left, mask=~result)
 
     # ---
 
@@ -148,11 +174,8 @@ class ControlExpr(Transformer):
     def element(self, section, rows, cols, specs=None):
         coords = Coords.create(section, rows, cols, self._dimension)
         specs = Specs.create(coords, specs, self._catalogs, self._formats)
+        elem = Element.create(coords, specs, self._report)
 
-        return Element(coords, specs, list(self._read_report(coords, specs)))
-
-    def _read_report(self, coords, specs):
-        sec = self._report.get_section(coords.section)
-
-        for row in sec.iter(coords.rows, specs):
-            yield [nfloat(col) for col in row.iter(coords.cols)]
+        if elem.size == 0:
+            raise EmptyElementError()
+        return elem

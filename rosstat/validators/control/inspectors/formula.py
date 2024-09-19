@@ -2,12 +2,12 @@ from lark.exceptions import UnexpectedCharacters, UnexpectedToken, VisitError
 
 from ..exceptions import (
     ConditionExprError,
-    ControlFault,
     PrevPeriodNotImpl,
     RuleExprError,
+    StopEvaluation,
 )
 from ..helpers import Formula
-from ..parser import parse, transform
+from ..parser import eval, getmask, nptrue, parse
 
 
 class FormulaInspector:
@@ -19,28 +19,29 @@ class FormulaInspector:
         return f"<FormulaInspector control={self.control}>"
 
     def check(self, report):
-        if self._check_condition(report) is None:
-            return self._check_rule(report)
+        try:
+            if (cond := self._check_condition(report)).any():
+                return self._check_rule(report, getmask(cond))
+        except StopEvaluation:
+            pass
 
     def _check_condition(self, report):
         """Проверка условия контроля"""
         return self._check_formula(
-            report, self.control.condition, Formula(0), ConditionExprError
+            self.control.condition, Formula(0), ConditionExprError, report
         )
 
-    def _check_rule(self, report):
+    def _check_rule(self, report, mask):
         """Проверка правила"""
         return self._check_formula(
-            report, self.control.rule, Formula(1), RuleExprError
+            self.control.rule, Formula(1), RuleExprError, report, mask
         )
 
-    def _check_formula(self, report, formula, type, exc):
+    def _check_formula(self, formula, type, exc, report, mask=None):
         """Проверка, парсинг и применение формулы на отчёт"""
-        try:
-            if formula and not self.__is_previous_period(formula):
-                self.__check(self.__parse(formula, exc), report, type)
-        except ControlFault as exc:
-            return exc
+        if self.__proper(formula):
+            return self.__check(self.__parse(formula, exc), type, report, mask)
+        return nptrue
 
     def __parse(self, formula, exc):
         """Парсинг формулы"""
@@ -49,19 +50,21 @@ class FormulaInspector:
         except (UnexpectedCharacters, UnexpectedToken):
             raise exc(self.control.id)
 
-    def __check(self, tree, report, type):
+    def __check(self, tree, type, report, mask):
         """Выполнение проверки"""
         try:
-            transform(tree, report, type, self.schema, self.control)
+            return eval(tree, type, report, mask, self.schema, self.control)
         except VisitError as exc:
             raise exc.orig_exc
 
-    def __is_previous_period(self, formula):
+    def __proper(self, formula):
         """
         Две фигурные скобки говорят о том, что значение необходимо брать из
         отчёта за прошлый период. Такой функционал не будет реализован
         """
-        if "{{" in formula:
-            if self.schema.alerts:
-                raise PrevPeriodNotImpl()
+        if formula:
+            if "{{" in formula:
+                if self.schema.alerts:
+                    raise PrevPeriodNotImpl()
+                return False
             return True
