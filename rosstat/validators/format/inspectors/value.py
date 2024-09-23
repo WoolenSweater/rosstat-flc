@@ -41,7 +41,7 @@ class ValueInspector(BaseFormatInspector):
         if func == "N":
             self._is_num(value, args)
         elif func == "C":
-            self._is_char(value, args)
+            self._is_chars(value, args)
 
     def _check_value(self, value):
         if self.vld_type == "1":

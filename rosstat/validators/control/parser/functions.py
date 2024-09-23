@@ -12,11 +12,12 @@ from numpy import (
 )
 
 from .dtype import nan, nfloat
+from .entities import MaskedElement
 
 # -- service --
 
 getmask = ma.getmask
-cover = ma.array
+cover = MaskedElement
 xor = logical_xor
 innerarray = operator.itemgetter(0)
 isnan = frompyfunc(lambda item: item.isnan(), 1, 1)
@@ -33,13 +34,13 @@ def round_(array, decimals, mode=0):
 
 
 def sum_(array, ctx=None):
-    if array.size == 0:
-        return nan
+    if array.size == 1:
+        return array
     elif isinstance(ctx, nfloat | None):
         return sum(array)
-    elif array.coords.cols == ctx.coords.cols:
+    elif array.coords.cols == getattr(ctx.coords, "cols", None):
         return sum(array, axis=0, keepdims=True)
-    elif array.coords.rows == ctx.coords.rows:
+    elif array.coords.rows == getattr(ctx.coords, "rows", None):
         return sum(array, axis=1, keepdims=True)
     else:
         return sum(array)

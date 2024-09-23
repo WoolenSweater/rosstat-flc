@@ -1,5 +1,5 @@
 import operator
-from math import isnan, trunc
+from math import floor, isnan, trunc
 
 from numpy import False_, True_
 
@@ -13,6 +13,13 @@ def coerce(func):
         elif isinstance(value, (int, float, str)):
             return func(cls, type(cls)(value))
         return NotImplemented
+
+    return wrapper
+
+
+def canbenan(func):
+    def wrapper(cls, *args):
+        return cls if cls.isnan() else func(cls, *args)
 
     return wrapper
 
@@ -33,6 +40,9 @@ class nfloat:
     def __repr__(self):
         return f"n{repr(self.value)}"
 
+    def __bool__(self):
+        return bool(self.value)
+
     def __str__(self):
         return str(self.value)
 
@@ -48,15 +58,17 @@ class nfloat:
     def __abs__(self):
         return nfloat(abs(self.value))
 
-    def __round__(self, ndigits):
-        if not self.isnan():
-            return nfloat(round(self.value, ndigits))
-        return self
+    @canbenan
+    def __floor__(self):
+        return nfloat(floor(self.value))
 
+    @canbenan
+    def __round__(self, ndigits):
+        return nfloat(round(self.value, ndigits))
+
+    @canbenan
     def __trunc__(self):
-        if not self.isnan():
-            return nfloat(trunc(self.value))
-        return self
+        return nfloat(trunc(self.value))
 
     def view(self, cls):
         return cls(self)

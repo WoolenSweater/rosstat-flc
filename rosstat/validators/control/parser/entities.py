@@ -1,4 +1,5 @@
 from numpy import True_, asarray, ndarray
+from numpy.ma import MaskedArray
 
 from ..exceptions import NoSectionError
 from .dtype import nan, nfloat
@@ -122,8 +123,8 @@ class Spec(Extendable):
 
 
 class Element(ndarray):
-    def __new__(cls, coords, specs, values):
-        obj = asarray(values or nan, dtype=nfloat).view(cls)
+    def __new__(cls, coords, specs, data):
+        obj = asarray(data or nan, dtype=nfloat).view(cls)
         obj.coords = coords
         obj.specs = specs
         return obj
@@ -145,4 +146,19 @@ class Element(ndarray):
             self.specs = getattr(obj, "specs", None)
 
     def __repr__(self):
-        return f"<Element {self.coords!r} {self.specs!s} values={self}>"
+        return f"<Element {self.coords!r} {self.specs!s} data={self}>"
+
+
+class MaskedElement(MaskedArray):
+    def __new__(cls, data, mask):
+        obj = super().__new__(cls, data, mask=mask)
+        obj.coords = getattr(data, "coords", None)
+        obj.specs = getattr(data, "specs", None)
+        return obj
+
+    def __repr__(self):
+        return (
+            f"<MaskedElement {self.coords!r} {self.specs!s} "
+            f"data={self} "
+            f"mask={self.mask}>"
+        )
