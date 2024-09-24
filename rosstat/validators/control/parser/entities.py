@@ -2,6 +2,7 @@ from numpy import True_, asarray, ndarray
 from numpy.ma import MaskedArray
 
 from ..exceptions import NoSectionError
+from ..helpers import SPEC_KEYS, SpecType
 from .dtype import nan, nfloat
 
 nptrue = True_
@@ -10,6 +11,22 @@ nptrue = True_
 class Codes(list):
     def __repr__(self):
         return f"[{','.join(self or "*")}]"
+
+
+class Specs:
+    def __init__(self, iterable=None, default=None, type=SpecType.CMN):
+        self.default = default if default is None else default.lower()
+        self.items = Codes() if iterable is None else Codes(iterable)
+        self.type = type
+
+    def __bool__(self):
+        return bool(self.items)
+
+    def __contains__(self, spec):
+        return spec in self.items
+
+    def __repr__(self):
+        return f"{repr(self.items)}[{self.type.name}][{self.default}]"
 
 
 class Extendable:
@@ -56,7 +73,7 @@ class Coords(Extendable):
 
     def __iter__(self):
         for row in self.rows:
-            yield self.section, row
+            yield self.section, row, self.cols
 
     @classmethod
     def _extend(cls, section, rows, cols, dimension):
@@ -70,56 +87,67 @@ class Coords(Extendable):
         yield Codes(cls._flatten(cols, dim.columns, strip=False))
 
 
-class Specs(dict):
+class SpecHolder(dict):
     def __repr__(self):
-        return f"<Specs {super().__repr__()}>"
+        return f"<SpecHolder {super().__repr__()}>"
 
     @classmethod
     def create(cls, coords, *args):
-        return cls((row, Spec.create(sec, row, *args)) for sec, row in coords)
+        return cls(cls._forrow(*coord, args) for coord in coords)
+
+    @staticmethod
+    def _forrow(sec, row, cols, args):
+        return row, SpecList.create(sec, row, cols, *args)
 
 
-class Spec(Extendable):
+class SpecList(Extendable):
     def __init__(self, s1, s2, s3):
         self.s1 = s1
         self.s2 = s2
         self.s3 = s3
 
     def __repr__(self):
-        return f"<Spec {self.s1}{self.s2}{self.s3}>"
+        return f"<SpecList s1={self.s1} s2={self.s2} s3={self.s3}>"
 
     def __iter__(self):
-        for key in ("s1", "s2", "s3"):
+        for key in SPEC_KEYS:
             yield key, getattr(self, key)
 
     @classmethod
-    def _extend(cls, sec, row, specs, catalogs, formats):
+    def _extend(cls, sec, row, cols, specs, catalogs, formats):
         if specs is None:
             yield from cls._stubs()
         else:
-            yield from cls._catalogs(sec, row, specs, catalogs, formats)
+            yield from cls._catalogs(sec, row, cols, specs, catalogs, formats)
 
     @staticmethod
     def _stubs():
-        return (Codes() for i in range(3))
+        return (Specs() for i in range(3))
 
     @classmethod
-    def _catalogs(cls, sec, row, specs, catalogs, formats):
-        collection = cls._get_collections(sec, row, catalogs, formats)
-        for i, spec in enumerate(specs):
-            if spec:
-                yield Codes(cls._flatten(spec, collection[i]))
-            else:
-                yield Codes()
-
-    @staticmethod
-    def _get_collections(sec, row, catalogs, formats):
+    def _catalogs(cls, sec, row, cols, specs, catalogs, formats):
         sec = formats.get(sec)
         row = sec.get(row)
 
-        dics = (row.get(col).get("dic") for col in sec.get("specs").values())
+        for spec, key in zip(specs, SPEC_KEYS):
+            if spec:
+                col, stype = cls._get_col(sec, cols, key)
+                ids, default = cls._get_ids(row, col, catalogs)
+                yield Specs(cls._flatten(spec, ids), default, stype)
+            else:
+                yield Specs()
 
-        return [catalogs.get(dic, {}).get("ids", []) for dic in dics]
+    @staticmethod
+    def _get_col(sec, cols, key):
+        if key in sec["specs"]:
+            return sec["specs"][key], SpecType.ROW
+        return cols[0], SpecType.COL
+
+    @staticmethod
+    def _get_ids(row, col, catalogs):
+        dic = row.get(col).get("dic")
+        default = row.get(col).get("default")
+        return catalogs.get(dic, {}).get("ids", []), default
 
 
 class Element(ndarray):
@@ -138,7 +166,8 @@ class Element(ndarray):
         sec = report.get_section(coords.section)
 
         for row in sec.iter(coords.rows, specs):
-            yield [nfloat(col) for col in row.iter(coords.cols)]
+            spec = specs.get(row.code).s1
+            yield [nfloat(col) for col in row.iter(coords.cols, spec)]
 
     def __array_finalize__(self, obj):
         if obj is not None:

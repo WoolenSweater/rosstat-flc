@@ -6,6 +6,7 @@ from lxml.etree import _Element, _ElementTree
 from multidict import MultiDict
 
 from .helpers import read_specs, str_int
+from .validators.control.helpers import SpecType
 
 
 def max_divider(num, terms):
@@ -16,14 +17,12 @@ def max_divider(num, terms):
 
 
 class CodeIterable:
-    def iter(self, codes=None, specs=None):
+    def iter(self, codes=None, specific=None):
         """Получения итератора по элементам"""
-        if codes is None:
+        if codes is None and specific is None:
             return self._iter_all()
-        elif specs is None:
-            return self._iter_codes(codes)
         else:
-            return self._iter_codes(codes, specs)
+            return self._iter_codes(codes, specific)
 
 
 @dataclass
@@ -33,6 +32,21 @@ class Column:
 
     def __float__(self):
         return float(self.value or "nan")
+
+    def match(self, spec):
+        """Проверка, входит ли значение в список переданных специфик"""
+        if self.relevant(spec):
+            if self.setdefault(spec.default) not in spec:
+                return False
+        return True
+
+    def relevant(self, spec):
+        return spec and spec.type == SpecType.COL
+
+    def setdefault(self, default):
+        if self.value is None:
+            self.value = default
+        return self.value
 
 
 @dataclass
@@ -51,10 +65,11 @@ class Row(CodeIterable):
         """Возвращает view-объект по всем колонкам"""
         return self.columns.values()
 
-    def _iter_codes(self, codes):
+    def _iter_codes(self, codes, spec):
         """Возвращает итератор по колонкам c указанными кодами"""
         for code in codes:
-            yield self.get_column(code)
+            if (col := self.get_column(code)).match(spec):
+                yield col
 
     def get_column(self, code):
         """Возвращает колонку"""
@@ -64,12 +79,16 @@ class Row(CodeIterable):
 
     def match(self, specs):
         """Проверка, входит ли строка в список переданных специфик"""
-        for key, spec in specs.get(self.code):
-            if spec and self.get_spec(key) not in spec:
-                return False
+        for key, spec in specs:
+            if self.relevant(spec):
+                if self.getspec(key, spec.default) not in spec:
+                    return False
         return True
 
-    def get_spec(self, key, default=None):
+    def relevant(self, spec):
+        return spec and spec.type == SpecType.ROW
+
+    def getspec(self, key, default=None):
         """Возвращает указанную специфику строки"""
         return self.specs.get(key) or default
 
@@ -91,10 +110,12 @@ class Section(CodeIterable):
         """Возвращает view-объект по всем строкам"""
         return self.rows.values()
 
-    def _iter_codes(self, codes, specs=None):
+    def _iter_codes(self, codes, holder):
         """Возвращает итератор по строкам c указанными кодами"""
         for code in codes:
-            yield from (row for row in self.get_rows(code) if row.match(specs))
+            for row in self.get_rows(code):
+                if row.match(holder.get(row.code)):
+                    yield row
 
     def get_rows(self, code):
         '''Возвращает список строк с указанным кодом"'''

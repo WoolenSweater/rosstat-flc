@@ -6,7 +6,7 @@ from ..exceptions import (
     RuleExprError,
     StopEvaluation,
 )
-from ..helpers import Formula
+from ..helpers import FormulaType
 from ..parser import eval, getmask, nptrue, parse
 
 
@@ -28,13 +28,13 @@ class FormulaInspector:
     def _check_condition(self, report):
         """Проверка условия контроля"""
         return self._check_formula(
-            self.control.condition, Formula(0), ConditionExprError, report
+            self.control.condition, FormulaType(0), ConditionExprError, report
         )
 
     def _check_rule(self, report, mask):
         """Проверка правила"""
         return self._check_formula(
-            self.control.rule, Formula(1), RuleExprError, report, mask
+            self.control.rule, FormulaType(1), RuleExprError, report, mask
         )
 
     def _check_formula(self, formula, type, exc, report, mask=None):

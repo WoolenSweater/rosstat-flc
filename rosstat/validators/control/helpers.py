@@ -1,7 +1,15 @@
-from enum import Enum
+from enum import IntEnum
+
+SPEC_KEYS = ("s1", "s2", "s3")
 
 
-class Formula(Enum):
+class SpecType(IntEnum):
+    CMN = 0
+    ROW = 1
+    COL = 2
+
+
+class FormulaType(IntEnum):
     CONDITION = 0
     RULE = 1
 

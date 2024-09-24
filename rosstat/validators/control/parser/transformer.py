@@ -4,12 +4,12 @@ from lark import Transformer
 from lark.visitors import v_args
 
 from ..exceptions import ConditionCheckFailed, RuleCheckFailed
-from ..helpers import Formula
+from ..helpers import FormulaType
 from .dtype import nfloat
 from .entities import (
     Coords,
     Element,
-    Specs,
+    SpecHolder,
 )
 from .functions import (
     FUNCTION_MAP,
@@ -41,7 +41,7 @@ class ControlExpr(Transformer):
 
     @property
     def _is_rule(self):
-        return self._type == Formula.RULE
+        return self._type == FormulaType.RULE
 
     @property
     def _has_fault(self):
@@ -174,5 +174,5 @@ class ControlExpr(Transformer):
     @v_args(inline=True)
     def element(self, section, rows, cols, specs=None):
         coords = Coords.create(section, rows, cols, self._dimension)
-        specs = Specs.create(coords, specs, self._catalogs, self._formats)
+        specs = SpecHolder.create(coords, specs, self._catalogs, self._formats)
         return Element.create(coords, specs, self._report)

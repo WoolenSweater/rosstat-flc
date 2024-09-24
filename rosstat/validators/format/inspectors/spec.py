@@ -17,15 +17,15 @@ class SpecInspector(BaseFormatInspector):
 
     def _check_spec_unrelated(self, row, spec_key):
         """Проверка на вхождение в приложение к справочнику"""
-        if row.get_spec(spec_key) not in self.catalogs[self.vld_param]:
+        if row.getspec(spec_key) not in self.catalogs[self.vld_param]:
             raise SpecNotInDictError()
 
     def _check_spec_related(self, row, spec_key, specs):
         """Проверка на вхождение в справочник и связь с главной спецификой"""
         ctx_dic, ctx_col = vld_pattern.match(self.vld_param).groups()
 
-        cur_spec = row.get_spec(spec_key)
-        ctx_spec = row.get_spec(self.__get_spec_by_col(specs, ctx_col))
+        cur_spec = row.getspec(spec_key)
+        ctx_spec = row.getspec(self.__get_spec_by_col(specs, ctx_col))
 
         try:
             if ctx_spec not in self.catalogs[self.dic_name][cur_spec][ctx_dic]:
