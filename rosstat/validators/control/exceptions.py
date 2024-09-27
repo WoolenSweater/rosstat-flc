@@ -17,6 +17,10 @@ class ConditionCheckFailed(StopEvaluation):
     """Прерывание проверки условия при отсутствии положительных результатов"""
 
 
+class TokenNotExist(StopEvaluation):
+    """Прерывание проверки условия при отсутствии токена в коллекции"""
+
+
 # ---
 
 

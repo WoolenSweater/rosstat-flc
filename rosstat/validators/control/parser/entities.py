@@ -1,7 +1,7 @@
 from numpy import True_, asarray, ndarray
 from numpy.ma import MaskedArray
 
-from ..exceptions import NoSectionError
+from ..exceptions import NoSectionError, TokenNotExist
 from ..helpers import SPEC_KEYS, SpecType
 from .dtype import nan, nfloat
 
@@ -35,14 +35,16 @@ class Extendable:
         return cls(*cls._extend(*args))
 
     @classmethod
-    def _flatten(cls, tokens, collection, strip=False):
+    def _flatten(cls, tokens, collection, spec=False, strip=False):
         for token in tokens:
             if cls._is_each(token):
                 yield from collection
             elif cls._need_slice(token):
                 yield from cls._slice(collection, *cls._fmt(strip, *token))
-            else:
+            elif spec or token in collection:
                 yield from cls._fmt(strip, token)
+            else:
+                raise TokenNotExist()
 
     @staticmethod
     def _is_each(token):
@@ -133,7 +135,7 @@ class SpecList(Extendable):
             if spec:
                 col, stype = cls._get_col(sec, cols, key)
                 ids, default = cls._get_ids(row, col, catalogs)
-                yield Specs(cls._flatten(spec, ids), default, stype)
+                yield Specs(cls._flatten(spec, ids, spec=True), default, stype)
             else:
                 yield Specs()
 

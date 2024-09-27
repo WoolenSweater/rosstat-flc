@@ -78,6 +78,9 @@ class Schema:
 
                     form[sec_code][row_code][col_code] = cell.attrib
 
+                    if self.__not_in_dimension(sec_code, col_code):
+                        self.dimension[sec_code].add_column(col_code)
+
                     if self.__is_required_cell(row, cell):
                         self.required.append((sec_code, row_code, col_code))
         return form
@@ -109,6 +112,10 @@ class Schema:
             return column.find("default-cell").attrib
         except AttributeError:
             return {}
+
+    def __not_in_dimension(self, sec_code, col_code):
+        """Проверка вхождения кода колонки в размерность раздела"""
+        return col_code not in self.dimension[sec_code].columns
 
     def __is_required_cell(self, row, cell):
         """Обязательная к заполнению ячейка"""

@@ -44,10 +44,22 @@ class SchemaCatalog(dict):
         self["ids"] = sorted(self.keys())
 
 
+class SchemaCodes(list):
+    def __init__(self):
+        self.set = set()
+
+    def __contains__(self, item):
+        return item in self.set
+
+    def append(self, item):
+        super().append(item)
+        self.set.add(item)
+
+
 class SchemaDimension:
     def __init__(self):
-        self.rows = []
-        self.columns = []
+        self.rows = SchemaCodes()
+        self.columns = SchemaCodes()
 
     def __repr__(self):
         return f"<SchemaDimension rows={self.rows} columns={self.columns}>"
