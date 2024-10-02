@@ -1,12 +1,13 @@
 from lark import Lark
 
 from .entities import nptrue
-from .functions import getmask
+from .functions import getmask, invert
 from .transformer import ControlExpr
 
 __all__ = [
     "nptrue",
     "getmask",
+    "invert",
 ]
 
 parser = Lark.open(

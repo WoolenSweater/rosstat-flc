@@ -7,7 +7,7 @@ from ..exceptions import (
     StopEvaluation,
 )
 from ..helpers import FormulaType
-from ..parser import eval, getmask, nptrue, parse
+from ..parser import eval, getmask, invert, nptrue, parse
 
 
 class FormulaInspector:
@@ -20,8 +20,8 @@ class FormulaInspector:
 
     def check(self, report):
         try:
-            if (cond := self._check_condition(report)).any():
-                return self._check_rule(report, getmask(cond))
+            if invert(mask := getmask(self._check_condition(report))).any():
+                return self._check_rule(report, mask)
         except StopEvaluation:
             pass
 

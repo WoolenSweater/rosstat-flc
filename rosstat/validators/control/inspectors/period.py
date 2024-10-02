@@ -20,11 +20,11 @@ class PeriodInspector:
     def _rebuild_clause(self, report):
         """Перестроение выражения проверки периода"""
         return rebuild_pattern.sub(
-            r"'\1'",
+            lambda match: str(int(match.group(0))),
             self.clause.lower()
             .replace("=", "==")
             .replace("<>", "!=")
-            .replace("&np", report.period),
+            .replace("&np", report.period_code),
         )
 
     def eval(self, expr):

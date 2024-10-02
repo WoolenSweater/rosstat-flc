@@ -40,9 +40,9 @@ class Extendable:
             if cls._is_each(token):
                 yield from collection
             elif cls._need_slice(token):
-                yield from cls._slice(collection, *cls._fmt(strip, *token))
-            elif spec or token in collection:
-                yield from cls._fmt(strip, token)
+                yield from cls._slice(collection, *cls._fmt_two(strip, token))
+            elif (token := cls._fmt(strip, token)) in collection or spec:
+                yield token
             else:
                 raise TokenNotExist()
 
@@ -55,9 +55,12 @@ class Extendable:
         return isinstance(token, list)
 
     @staticmethod
-    def _fmt(strip, *tokens):
-        for token in tokens:
-            yield token.value.lstrip("0") if strip else token.value
+    def _fmt(strip, token):
+        return token.value.lstrip("0") if strip else token.value
+
+    @classmethod
+    def _fmt_two(cls, strip, tokens):
+        return (cls._fmt(strip, token) for token in tokens)
 
     @staticmethod
     def _slice(collection, start, end):
@@ -86,7 +89,7 @@ class Coords(Extendable):
 
         yield sec
         yield Codes(cls._flatten(rows, dim.rows, strip=True))
-        yield Codes(cls._flatten(cols, dim.columns, strip=False))
+        yield Codes(cls._flatten(cols, dim.columns, strip=True))
 
 
 class SpecHolder(dict):
@@ -168,8 +171,8 @@ class Element(ndarray):
         sec = report.get_section(coords.section)
 
         for row in sec.iter(coords.rows, specs):
-            spec = specs.get(row.code).s1
-            yield [nfloat(col) for col in row.iter(coords.cols, spec)]
+            spec = specs.get(row.code)
+            yield [nfloat(col) for col in row.iter(coords.cols, spec.s1)]
 
     def __array_finalize__(self, obj):
         if obj is not None:

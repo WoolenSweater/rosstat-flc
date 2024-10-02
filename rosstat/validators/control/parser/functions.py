@@ -4,6 +4,7 @@ from numpy import (
     atleast_1d,
     floor,
     frompyfunc,
+    invert,
     logical_xor,
     ma,
     place,
@@ -16,6 +17,7 @@ from .entities import MaskedElement
 
 # -- service --
 
+invert = invert
 getmask = ma.getmask
 cover = MaskedElement
 xor = logical_xor

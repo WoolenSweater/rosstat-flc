@@ -204,8 +204,8 @@ class Report(CodeIterable):
         self.period = xml.xpath("string(@period)")
 
         if len(self.period) == 4:
-            self.period_type = str_int(self.period[:2])
-            self.period_code = str_int(self.period[2:])
+            self.period_type = str(int(self.period[:2]))
+            self.period_code = str(int(self.period[2:]))
 
     # ---
 
@@ -223,7 +223,7 @@ class Report(CodeIterable):
 
             if max_code <= int(idp):
                 self.period_type = idp
-                self.period_code = self.period
+                self.period_code = str(int(self.period))
                 return True
 
             max_div = max_divider(max_code, period_ids)
