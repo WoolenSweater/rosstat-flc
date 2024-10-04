@@ -1,6 +1,5 @@
 from functools import partial
 
-from lark import Transformer
 from lark.visitors import v_args
 
 from ..exceptions import ConditionCheckFailed, RuleCheckFailed
@@ -20,10 +19,11 @@ from .functions import (
     sum_,
     xor,
 )
+from .tools import Transformer, lazy
 
 
 class ControlExpr(Transformer):
-    def __init__(self, type, report, mask, schema, control):
+    def __init__(self, tree, type, report, mask, schema, control):
         super().__init__(visit_tokens=False)
         self._type = type
         self._report = report
@@ -34,10 +34,18 @@ class ControlExpr(Transformer):
         self._catalogs = schema.catalogs
         self._dimension = schema.dimension
 
+        self._root = tree
+        self._lazy = lazy(tree)
         self._precision = partial(round_, decimals=control.precision)
 
     def __default__(self, data, children, meta):
         return children
+
+    @staticmethod
+    def _pop(children):
+        return children.pop()
+
+    # ---
 
     @property
     def _is_rule(self):
@@ -50,10 +58,6 @@ class ControlExpr(Transformer):
     @staticmethod
     def _is_eq(op):
         return op in {"<=", "=", "<>", ">="}
-
-    @staticmethod
-    def _pop(children):
-        return children.pop()
 
     # ---
 
@@ -97,11 +101,11 @@ class ControlExpr(Transformer):
         result = self._exec(op, ~getmask(left), ~getmask(right))
 
         if self._is_rule:
-            self._check_all(op, left, right, result, 1)
+            self._check_all(result, 1, op, left, right)
         else:
             self._check_any(result)
 
-        return self._mask_operand(result, left, right)
+        return cover(result, mask=~result)
 
     @v_args(inline=True)
     def _logic_expr(self, left, op, right):
@@ -125,11 +129,11 @@ class ControlExpr(Transformer):
         return result
 
     def _check_all(self, result, delta, op, left, right):
-        if not result.all():
+        if (self._lazy or self._root.processing) and not result.all():
             raise RuleCheckFailed(op, left, right, delta)
 
     def _check_any(self, result):
-        if not result.any():
+        if (self._lazy or self._root.processing) and not result.any():
             raise ConditionCheckFailed()
 
     def _mask_operand(self, result, left, right):

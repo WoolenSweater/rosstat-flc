@@ -1,4 +1,4 @@
-from lark.exceptions import UnexpectedCharacters, UnexpectedToken, VisitError
+from lark.exceptions import UnexpectedInput, VisitError
 
 from ..exceptions import (
     ConditionExprError,
@@ -47,7 +47,7 @@ class FormulaInspector:
         """Парсинг формулы"""
         try:
             return parse(formula)
-        except (UnexpectedCharacters, UnexpectedToken):
+        except UnexpectedInput:
             raise exc(self.control.id)
 
     def __check(self, tree, type, report, mask):

@@ -2,6 +2,7 @@ from lark import Lark
 
 from .entities import nptrue
 from .functions import getmask, invert
+from .tools import Tree
 from .transformer import ControlExpr
 
 __all__ = [
@@ -11,7 +12,12 @@ __all__ = [
 ]
 
 parser = Lark.open(
-    "grammar.lark", parser="lalr", strict=True, cache=True, rel_to=__file__
+    "grammar.lark",
+    parser="lalr",
+    strict=True,
+    cache=True,
+    tree_class=Tree,
+    rel_to=__file__,
 )
 
 
@@ -20,4 +26,6 @@ def parse(control):
 
 
 def eval(tree, type, report, mask, schema, control):
-    return ControlExpr(type, report, mask, schema, control).transform(tree)
+    return ControlExpr(tree, type, report, mask, schema, control).transform(
+        tree
+    )
