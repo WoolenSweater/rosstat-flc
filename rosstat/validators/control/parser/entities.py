@@ -1,7 +1,7 @@
 from numpy import True_, asarray, ndarray
 from numpy.ma import MaskedArray
 
-from ..exceptions import NoSectionError, TokenNotExist
+from ..exceptions import NoCoordinatesError, NoSectionError
 from ..helpers import SPEC_KEYS, SpecType
 from .dtype import nan, nfloat
 
@@ -9,6 +9,13 @@ nptrue = True_
 
 
 class Codes(list):
+    def __init__(self, iterable):
+        list.__init__(self, iterable)
+        self.set = set(self)
+
+    def __contains__(self, item):
+        return item in self.set
+
     def __repr__(self):
         return f"[{','.join(self or "*")}]"
 
@@ -16,7 +23,7 @@ class Codes(list):
 class Specs:
     def __init__(self, iterable=None, default=None, type=SpecType.CMN):
         self.default = default if default is None else default.lower()
-        self.items = Codes() if iterable is None else Codes(iterable)
+        self.items = Codes(iterable or ())
         self.type = type
 
     def __bool__(self):
@@ -43,8 +50,6 @@ class Extendable:
                 yield from cls._slice(collection, *cls._fmt_two(strip, token))
             elif (token := cls._fmt(strip, token)) in collection or spec:
                 yield token
-            else:
-                raise TokenNotExist()
 
     @staticmethod
     def _is_each(token):
@@ -72,6 +77,9 @@ class Coords(Extendable):
         self.section = section
         self.rows = rows
         self.cols = cols
+
+        if not rows or not cols:
+            raise NoCoordinatesError()
 
     def __repr__(self):
         return f"<Coords [{self.section}]{self.rows}{self.cols}>"

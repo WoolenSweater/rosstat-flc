@@ -2,7 +2,11 @@ from functools import partial
 
 from lark.visitors import v_args
 
-from ..exceptions import ConditionCheckFailed, RuleCheckFailed
+from ..exceptions import (
+    ConditionCheckFailed,
+    RuleCheckFailed,
+    raise_for_reason,
+)
 from ..helpers import FormulaType
 from .dtype import nfloat
 from .entities import (
@@ -62,7 +66,10 @@ class ControlExpr(Transformer):
     # ---
 
     def _exec(self, op, *args):
-        return FUNCTION_MAP.get(op)(*args)
+        try:
+            return FUNCTION_MAP.get(op)(*args)
+        except ValueError as exc:
+            raise_for_reason(exc)
 
     def _delta(self, left, right):
         return abs(left - right)

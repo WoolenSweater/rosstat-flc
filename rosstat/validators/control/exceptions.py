@@ -13,12 +13,22 @@ class NoSectionError(StopEvaluation):
     """Прерывание проверки при отсутствии раздела из формулы контроля"""
 
 
+class NoCoordinatesError(StopEvaluation):
+    """Прерывание проверки при отсутствии кодов координат"""
+
+
+class BadShapeError(StopEvaluation):
+    """Прерывание проверки при расхождении размерностей элементов"""
+
+
 class ConditionCheckFailed(StopEvaluation):
     """Прерывание проверки условия при отсутствии положительных результатов"""
 
 
-class TokenNotExist(StopEvaluation):
-    """Прерывание проверки условия при отсутствии токена в коллекции"""
+def raise_for_reason(exc):
+    if "operands could not be broadcast together with shapes" in str(exc):
+        raise BadShapeError()
+    raise exc
 
 
 # ---
