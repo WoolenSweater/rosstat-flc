@@ -1,3 +1,8 @@
+from numpy.ma import array, is_masked, nomask
+
+from .helpers import RuleFail
+
+
 class BaseControlError(Exception):
     pass
 
@@ -18,7 +23,17 @@ class NoCoordinatesError(StopEvaluation):
 
 
 class BadShapeError(StopEvaluation):
-    """Прерывание проверки при расхождении размерностей элементов"""
+    """
+    Прерывание проверки при расхождении размерностей элементов
+    Обнаружено в usl_1ol_01 (0609508)
+    """
+
+
+class SliceError(StopEvaluation):
+    """
+    Прерывание проверки при невозможности развернуть диапазон
+    Обнаружено в f_1rc2rc_01 (0616005)
+    """
 
 
 class ConditionCheckFailed(StopEvaluation):
@@ -54,9 +69,26 @@ class PrevPeriodNotImpl(CriticalError):
     msg = "Проверка со значениями из прошлого периода невозможна"
 
 
+def fround(value):
+    return round(float(getattr(value, "data", value)), ndigits=2)
+
+
 class RuleCheckFailed(CriticalError):
-    def __init__(self, operation, left, right, delta):
+    def __init__(self, operation, left, right, delta, result):
         self.operation = operation
-        self.left = left
-        self.right = right
-        self.delta = delta
+        self.left = left.flat
+        self.right = right.flat
+        self.delta = self.__cover(delta, result).flat
+
+    def __cover(self, delta, result):
+        return array(delta, mask=result | getattr(result, "mask", nomask))
+
+    def __iter__(self):
+        for left, right, delta in zip(self.left, self.right, self.delta):
+            if not is_masked(delta):
+                yield RuleFail(
+                    operation=self.operation,
+                    left=fround(left),
+                    right=fround(right),
+                    delta=fround(delta),
+                )

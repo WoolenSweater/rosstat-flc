@@ -8,7 +8,7 @@ from ..exceptions import (
     raise_for_reason,
 )
 from ..helpers import FormulaType
-from .dtype import nfloat
+from .dtype import nfloat, one
 from .entities import (
     Coords,
     Element,
@@ -108,11 +108,11 @@ class ControlExpr(Transformer):
         result = self._exec(op, ~getmask(left), ~getmask(right))
 
         if self._is_rule:
-            self._check_all(result, 1, op, left, right)
+            self._check_all(result, one, op, left, right)
         else:
             self._check_any(result)
 
-        return cover(result, mask=~result)
+        return self._mask_result(result)
 
     @v_args(inline=True)
     def _logic_expr(self, left, op, right):
@@ -137,11 +137,16 @@ class ControlExpr(Transformer):
 
     def _check_all(self, result, delta, op, left, right):
         if (self._lazy or self._root.processing) and not result.all():
-            raise RuleCheckFailed(op, left, right, delta)
+            raise RuleCheckFailed(op, left, right, delta, result)
 
     def _check_any(self, result):
         if (self._lazy or self._root.processing) and not result.any():
             raise ConditionCheckFailed()
+
+    # ---
+
+    def _mask_result(self, result):
+        return cover(result, mask=~result)
 
     def _mask_operand(self, result, left, right):
         if result.shape == right.shape:

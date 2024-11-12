@@ -1,4 +1,5 @@
 import operator
+from itertools import repeat
 from math import floor, isnan, trunc
 
 from numpy import False_, True_
@@ -69,6 +70,10 @@ class nfloat:
     @canbenan
     def __trunc__(self):
         return nfloat(trunc(self.value))
+
+    @property
+    def flat(self):
+        return repeat(self.value)
 
     def view(self, cls):
         return cls(self)
@@ -175,3 +180,4 @@ class nfloat:
 
 
 nan = nfloat("nan")
+one = nfloat(1)

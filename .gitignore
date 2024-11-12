@@ -49,6 +49,7 @@ coverage.xml
 .pytest_cache/
 
 # Project temp/test/work stuff
+profile/
 .ruff_cache
 test*.py
 

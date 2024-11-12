@@ -43,6 +43,10 @@ class ControlValidator(AbstractValidator):
         except PrevPeriodNotImpl as err:
             self.error(err.msg, control.id, level=0)
         except RuleCheckFailed as err:
+            self.errormany(err, control)
+
+    def errormany(self, errs, control):
+        for err in errs:
             self.error(self._fmt(control, err), control.id, level=control.tip)
 
     def __check_period(self, report, control):

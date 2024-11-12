@@ -1,11 +1,12 @@
-from numpy import True_, asarray, ndarray
+from numpy import True_, asarray, full, ndarray
 from numpy.ma import MaskedArray
 
-from ..exceptions import NoCoordinatesError, NoSectionError
+from ..exceptions import NoCoordinatesError, NoSectionError, SliceError
 from ..helpers import SPEC_KEYS, SpecType
 from .dtype import nan, nfloat
 
 nptrue = True_
+star = "*"
 
 
 class Codes(list):
@@ -17,7 +18,7 @@ class Codes(list):
         return item in self.set
 
     def __repr__(self):
-        return f"[{','.join(self or "*")}]"
+        return f"[{','.join(self or star)}]"
 
 
 class Specs:
@@ -69,7 +70,13 @@ class Extendable:
 
     @staticmethod
     def _slice(collection, start, end):
-        return collection[collection.index(start) : collection.index(end) + 1]
+        try:
+            start = collection.index(start)
+            end = collection.index(end)
+
+            return collection[start : end + 1]
+        except ValueError:
+            raise SliceError()
 
 
 class Coords(Extendable):
@@ -87,6 +94,10 @@ class Coords(Extendable):
     def __iter__(self):
         for row in self.rows:
             yield self.section, row, self.cols
+
+    @property
+    def shape(self):
+        return (len(self.rows), len(self.cols))
 
     @classmethod
     def _extend(cls, section, rows, cols, dimension):
@@ -165,7 +176,11 @@ class SpecList(Extendable):
 
 class Element(ndarray):
     def __new__(cls, coords, specs, data):
-        obj = asarray(data or nan, dtype=nfloat).view(cls)
+        if data:
+            obj = asarray(data, dtype=nfloat).view(cls)
+        else:
+            obj = full(coords.shape, nan, dtype=nfloat).view(cls)
+
         obj.coords = coords
         obj.specs = specs
         return obj

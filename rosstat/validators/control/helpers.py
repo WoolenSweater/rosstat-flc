@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import IntEnum
 
 SPEC_KEYS = ("s1", "s2", "s3")
@@ -12,6 +13,14 @@ class SpecType(IntEnum):
 class FormulaType(IntEnum):
     CONDITION = 0
     RULE = 1
+
+
+@dataclass(repr=False, eq=False)
+class RuleFail:
+    operation: str
+    left: str
+    right: str
+    delta: str
 
 
 class Control:
