@@ -68,7 +68,7 @@ class Schema:
             for row in section.iterfind("rows/row"):
                 row_code = str_int(row.get("code"))
 
-                form[sec_code][row_code] = defaults.copy()
+                form[sec_code][row_code] = self._copy_defaults(row, defaults)
 
                 if self.__is_input_row(row):
                     self.dimension[sec_code].add_row(row_code)
@@ -85,6 +85,10 @@ class Schema:
     def __is_input_row(self, row):
         """Строка доступная для ввода данных"""
         return row.get("type") != "C"
+
+    def _copy_defaults(self, row, defaults):
+        """Копирование дефолтов с добавлением атрибута ключевых специфик"""
+        return dict(defaults, grv=row.get("grv", ""))
 
     def _read_defaults(self, section, sec_code):
         """Чтение атрибутов определяющих дефолтный формат и специфики"""

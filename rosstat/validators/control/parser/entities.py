@@ -1,7 +1,12 @@
 from numpy import True_, asarray, full, ndarray
 from numpy.ma import MaskedArray
 
-from ..exceptions import NoCoordinatesError, NoSectionError, SliceError
+from ..exceptions import (
+    NoCoordinatesError,
+    NonKeySpecificError,
+    NoSectionError,
+    SliceError,
+)
 from ..helpers import SPEC_KEYS, SpecType
 from .dtype import nan, nfloat
 
@@ -22,9 +27,9 @@ class Codes(list):
 
 
 class Specs:
-    def __init__(self, iterable=None, default=None, type=SpecType.CMN):
-        self.default = default if default is None else default.lower()
-        self.items = Codes(iterable or ())
+    def __init__(self, iterable=(), default=None, type=SpecType.CMN):
+        self.default = default
+        self.items = Codes(iterable)
         self.type = type
 
     def __bool__(self):
@@ -43,13 +48,13 @@ class Extendable:
         return cls(*cls._extend(*args))
 
     @classmethod
-    def _flatten(cls, tokens, collection, spec=False, strip=False):
+    def _flat(cls, tokens, collection, *params):
         for token in tokens:
             if cls._is_each(token):
                 yield from collection
             elif cls._need_slice(token):
-                yield from cls._slice(collection, *cls._fmt_two(strip, token))
-            elif (token := cls._fmt(strip, token)) in collection or spec:
+                yield from cls._slice(collection, *token)
+            elif token := cls._special_case(collection, token, *params):
                 yield token
 
     @staticmethod
@@ -60,19 +65,11 @@ class Extendable:
     def _need_slice(token):
         return isinstance(token, list)
 
-    @staticmethod
-    def _fmt(strip, token):
-        return token.value.lstrip("0") if strip else token.value
-
     @classmethod
-    def _fmt_two(cls, strip, tokens):
-        return (cls._fmt(strip, token) for token in tokens)
-
-    @staticmethod
-    def _slice(collection, start, end):
+    def _slice(cls, collection, start, end):
         try:
-            start = collection.index(start)
-            end = collection.index(end)
+            start = collection.index(cls._fmt(start))
+            end = collection.index(cls._fmt(end))
 
             return collection[start : end + 1]
         except ValueError:
@@ -99,6 +96,15 @@ class Coords(Extendable):
     def shape(self):
         return (len(self.rows), len(self.cols))
 
+    @staticmethod
+    def _fmt(token):
+        return token.value.lstrip("0")
+
+    @classmethod
+    def _special_case(cls, collection, token):
+        if (token := cls._fmt(token)) in collection:
+            return token
+
     @classmethod
     def _extend(cls, section, rows, cols, dimension):
         sec = section.pop().lstrip("0")
@@ -107,8 +113,8 @@ class Coords(Extendable):
             raise NoSectionError()
 
         yield sec
-        yield Codes(cls._flatten(rows, dim.rows, strip=True))
-        yield Codes(cls._flatten(cols, dim.columns, strip=True))
+        yield Codes(cls._flat(rows, dim.rows))
+        yield Codes(cls._flat(cols, dim.columns))
 
 
 class SpecHolder(dict):
@@ -137,6 +143,16 @@ class SpecList(Extendable):
         for key in SPEC_KEYS:
             yield key, getattr(self, key)
 
+    @staticmethod
+    def _fmt(token):
+        return token.value
+
+    @classmethod
+    def _special_case(cls, collection, token, default, grv):
+        if (token := cls._fmt(token)) != default and not grv:
+            raise NonKeySpecificError()
+        return token
+
     @classmethod
     def _extend(cls, sec, row, cols, specs, catalogs, formats):
         if specs is None:
@@ -156,8 +172,8 @@ class SpecList(Extendable):
         for spec, key in zip(specs, SPEC_KEYS):
             if spec:
                 col, stype = cls._get_col(sec, cols, key)
-                ids, default = cls._get_ids(row, col, catalogs)
-                yield Specs(cls._flatten(spec, ids, spec=True), default, stype)
+                ids, grv, default = cls._get_ids(row, col, catalogs)
+                yield Specs(cls._flat(spec, ids, default, grv), default, stype)
             else:
                 yield Specs()
 
@@ -169,9 +185,10 @@ class SpecList(Extendable):
 
     @staticmethod
     def _get_ids(row, col, catalogs):
+        grv = row.get("grv")
         dic = row.get(col).get("dic")
-        default = row.get(col).get("default")
-        return catalogs.get(dic, {}).get("ids", []), default
+        default = row.get(col).get("default", "").lower()
+        return catalogs.get(dic, {}).get("ids", []), col in grv, default
 
 
 class Element(ndarray):

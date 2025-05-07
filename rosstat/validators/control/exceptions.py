@@ -22,6 +22,13 @@ class NoCoordinatesError(StopEvaluation):
     """Прерывание проверки при отсутствии кодов координат"""
 
 
+class NonKeySpecificError(StopEvaluation):
+    """
+    Прерывание проверки если у элемента указана специфика,
+    но она не входит в ключевые (grv) и не является спецификой по умолчанию
+    """
+
+
 class BadShapeError(StopEvaluation):
     """
     Прерывание проверки при расхождении размерностей элементов
