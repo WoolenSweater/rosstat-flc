@@ -1,4 +1,5 @@
-from numpy.ma import array, is_masked, nomask
+from numpy import broadcast_to
+from numpy.ma import getmask, nomask
 
 from .helpers import RuleFail
 
@@ -76,26 +77,31 @@ class PrevPeriodNotImpl(CriticalError):
     msg = "Проверка со значениями из прошлого периода невозможна"
 
 
-def fround(value):
-    return round(float(getattr(value, "data", value)), ndigits=2)
-
-
 class RuleCheckFailed(CriticalError):
     def __init__(self, operation, left, right, delta, result):
         self.operation = operation
-        self.left = left.flat
-        self.right = right.flat
-        self.delta = self.__cover(delta, result).flat
 
-    def __cover(self, delta, result):
-        return array(delta, mask=result | getattr(result, "mask", nomask))
+        mask = self.__get_mask(result)
+        left, right = self.__equalize_operands(left, right)
+
+        self.stack = zip(left.flat, right.flat, delta.flat, mask.flat)
+
+    def __get_mask(self, result):
+        return result if (mask := getmask(result)) is nomask else mask
+
+    def __equalize_operands(self, left, right):
+        if left.size > right.size:
+            right = broadcast_to(right, left.shape)
+        elif left.size < right.size:
+            left = broadcast_to(left, right.shape)
+        return left, right
 
     def __iter__(self):
-        for left, right, delta in zip(self.left, self.right, self.delta):
-            if not is_masked(delta):
+        for left, right, delta, masked in self.stack:
+            if not masked:
                 yield RuleFail(
                     operation=self.operation,
-                    left=fround(left),
-                    right=fround(right),
-                    delta=fround(delta),
+                    left=left,
+                    right=right,
+                    delta=delta,
                 )
