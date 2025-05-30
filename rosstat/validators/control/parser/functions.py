@@ -1,6 +1,7 @@
 import operator
 
 from numpy import (
+    array_equal,
     atleast_1d,
     floor,
     frompyfunc,
@@ -53,7 +54,7 @@ def coalesce_(*arrays):
 
 
 def nullif_(array1, array2):
-    return nan if array1 == array2 else array1
+    return nan if array_equal(array1, array2) else array1
 
 
 def floor_(array):

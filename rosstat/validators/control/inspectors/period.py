@@ -2,7 +2,7 @@ import re
 
 from ..exceptions import PeriodExprError
 
-rebuild_pattern = re.compile(r"(\d+)")
+rebuild_pattern = re.compile(r"(0+\d+)|\((\d+)\)")
 
 
 class PeriodInspector:
@@ -12,6 +12,13 @@ class PeriodInspector:
     def __repr__(self):
         return f"<PeriodInspector clause={self.clause}>"
 
+    def replacer(self, match):
+        match match.groups():
+            case str() as num, None:
+                return str(int(num))
+            case None, str() as num:
+                return f"({int(num)},)"
+
     def check(self, report):
         if self.clause:
             return self.eval(self._rebuild_clause(report))
@@ -20,7 +27,7 @@ class PeriodInspector:
     def _rebuild_clause(self, report):
         """Перестроение выражения проверки периода"""
         return rebuild_pattern.sub(
-            lambda match: str(int(match.group(0))),
+            self.replacer,
             self.clause.lower()
             .replace("=", "==")
             .replace("<>", "!=")
