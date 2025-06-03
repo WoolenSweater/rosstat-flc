@@ -127,6 +127,7 @@ class Report(CodeIterable):
     xml: InitVar[_Element | _ElementTree]
 
     year: str = None
+    version: str = None
 
     title: dict[str, str] = None
     sections: dict[str, Section] = None
@@ -140,6 +141,7 @@ class Report(CodeIterable):
         self.sections = dict(self._read_data(xml))
 
         self._get_periods(xml)
+        self._get_version(xml)
         self._get_year(xml)
 
     @property
@@ -198,6 +200,10 @@ class Report(CodeIterable):
     def _get_year(self, xml):
         """Получение года из корня отчёта"""
         self.year = xml.xpath("string(@year)")
+
+    def _get_version(self, xml):
+        """Получение версии из корня отчёта"""
+        self.version = xml.xpath("string(@version)")
 
     def _get_periods(self, xml):
         """Получение и разбиение периода из корня отчёта"""

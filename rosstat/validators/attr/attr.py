@@ -14,21 +14,32 @@ class AttrValidator(AbstractValidator):
 
         self.idp = schema.idp
         self.catalogs = schema.catalogs
+        self.version = schema.version
 
     def __repr__(self):
         return f"<AttrValidator idp={self.idp} errors={self.errors}>"
 
     def validate(self, report):
-        self._check_year(report)
-        self._check_match(report)
-        self._check_period(report)
+        if self._check_version(report):
+            self._check_year(report)
+            self._check_match(report)
+            self._check_period(report)
 
         return not bool(self.errors)
+
+    def _check_version(self, report):
+        """Проверка совпадения версий отчёта и схемы"""
+        if not (match := self.version == report.version):
+            self.error(
+                "Версия шаблона не соответствует версии проверяемого отчёта",
+                "1",
+            )
+        return match
 
     def _check_year(self, report):
         """Проверка формата года"""
         if not year_pattern.match(report.year):
-            self.error("Указан недопустимый год", "1")
+            self.error("Указан недопустимый год", "2")
 
     def _check_match(self, report):
         """Проверка совпадения типа периода отчёта с периодом схемы"""
@@ -37,11 +48,11 @@ class AttrValidator(AbstractValidator):
                 self.error(
                     "Тип периодичности отчёта не соответствует "
                     "типу периодичности шаблона",
-                    "2",
+                    "3",
                 )
 
     def _check_period(self, report):
         """Проверка кода периода"""
         if report.period_code is None:
             if not report.set_periods(self.catalogs, self.idp):
-                self.error("Неверное значение периода отчёта", "3")
+                self.error("Неверное значение периода отчёта", "4")

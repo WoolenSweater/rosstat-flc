@@ -21,6 +21,7 @@ class Schema:
         self.idp = self._get_idp()
         self.obj = self._get_obj()
         self.title = self._get_title()
+        self.version = self._get_version()
         self.formats = self._get_formats()
         self.controls = self._get_controls()
         self.catalogs = self._get_catalogs()
@@ -52,6 +53,10 @@ class Schema:
     def _get_controls(self):
         """Получение итератора по нодам контролей"""
         return self.xml.iterfind("controls/control")
+
+    def _get_version(self):
+        """Получение атрибута version"""
+        return self.xml.xpath("string(@version)")
 
     # ---
 
