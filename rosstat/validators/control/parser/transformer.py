@@ -23,7 +23,7 @@ from .functions import (
     sum_,
     xor,
 )
-from .tools import Transformer, lazy
+from .tools import Context, Transformer, lazy
 
 
 class ControlExpr(Transformer):
@@ -39,6 +39,7 @@ class ControlExpr(Transformer):
         self._dimension = schema.dimension
 
         self._root = tree
+        self._ctx = Context()
         self._lazy = lazy(tree)
         self._precision = partial(round_, decimals=control.precision)
 
@@ -84,16 +85,14 @@ class ControlExpr(Transformer):
             return cover(array, mask=self._mask)
         return array
 
-    def _call_partial(self, operand, ctx=None):
+    def _call_partial(self, operand):
         if isinstance(operand, partial):
-            if isinstance(ctx, partial):
-                ctx = innerarray(ctx.args)
-            return operand(ctx)
+            return operand(ctx=self._ctx.get(innerarray(operand.args)))
         return operand
 
     def _call(self, left, right):
-        left = self._call_partial(left, right)
-        right = self._call_partial(right, left)
+        left = self._call_partial(left)
+        right = self._call_partial(right)
         return left, right
 
     @v_args(inline=True)
@@ -183,7 +182,9 @@ class ControlExpr(Transformer):
     logic_expr = _logic_expr
 
     def num(self, children):
-        return nfloat(self._pop(children))
+        num = nfloat(self._pop(children))
+
+        return self._ctx.add(num)
 
     # ---
 
@@ -191,4 +192,6 @@ class ControlExpr(Transformer):
     def element(self, section, rows, cols, specs=None):
         coords = Coords.create(section, rows, cols, self._dimension)
         specs = SpecHolder.create(coords, specs, self._catalogs, self._formats)
-        return Element.create(coords, specs, self._report)
+        elem = Element.create(coords, specs, self._report)
+
+        return self._ctx.add(elem)

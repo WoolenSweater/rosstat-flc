@@ -86,6 +86,9 @@ class RuleCheckFailed(CriticalError):
 
         self.stack = zip(left.flat, right.flat, delta.flat, mask.flat)
 
+    def __str__(self):
+        return "RuleCheckFailed"
+
     def __get_mask(self, result):
         return result if (mask := getmask(result)) is nomask else mask
 

@@ -75,6 +75,10 @@ class nfloat:
     def flat(self):
         return repeat(self.value)
 
+    @property
+    def coords(self):
+        return repr(self)
+
     def view(self, cls):
         return cls(self)
 

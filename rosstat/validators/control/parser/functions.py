@@ -36,14 +36,14 @@ def round_(array, decimals, mode=0):
         return around(array, decimals)
 
 
-def sum_(array, ctx=None):
+def sum_(array, ctx):
     if array.size == 1:
         return array
-    elif isinstance(ctx, nfloat | None):
+    elif isinstance(ctx, nfloat):
         return sum(array)
-    elif array.coords.cols == getattr(ctx.coords, "cols", None):
+    elif array.coords.cols == ctx.coords.cols:
         return sum(array, axis=0, keepdims=True)
-    elif array.coords.rows == getattr(ctx.coords, "rows", None):
+    elif array.coords.rows == ctx.coords.rows:
         return sum(array, axis=1, keepdims=True)
     else:
         return sum(array)
