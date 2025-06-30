@@ -1,8 +1,12 @@
-import re
-
 from ..base import AbstractValidator
-
-year_pattern = re.compile(r"18\d{2}|19\d{2}|20\d{2}")
+from .exceptions import (
+    AttrError,
+    IdpError,
+    PeriodError,
+    VersionError,
+    YearError,
+)
+from .inspectors import PeriodInspector
 
 
 class AttrValidator(AbstractValidator):
@@ -11,48 +15,46 @@ class AttrValidator(AbstractValidator):
 
     def __init__(self, schema):
         self.errors = []
-
-        self.idp = schema.idp
-        self.catalogs = schema.catalogs
         self.version = schema.version
 
+        self.period = PeriodInspector(schema)
+
     def __repr__(self):
-        return f"<AttrValidator idp={self.idp} errors={self.errors}>"
+        return (
+            f"<AttrValidator "
+            f"version={self.version} "
+            f"period={self.period} "
+            f"errors={self.errors}>"
+        )
 
     def validate(self, report):
-        if self._check_version(report):
+        try:
+            self._check_version(report)
             self._check_year(report)
-            self._check_match(report)
+            self._recode_period(report)
             self._check_period(report)
+        except AttrError as exc:
+            self.error(exc.msg, exc.code)
 
         return not bool(self.errors)
 
     def _check_version(self, report):
         """Проверка совпадения версий отчёта и схемы"""
-        if not (match := self.version == report.version):
-            self.error(
-                "Версия шаблона не соответствует версии проверяемого отчёта",
-                "1",
-            )
-        return match
+        if report.version != self.version:
+            raise VersionError()
 
     def _check_year(self, report):
-        """Проверка формата года"""
-        if not year_pattern.match(report.year):
-            self.error("Указан недопустимый год", "2")
+        """Проверка вхождения года в справочник схемы"""
+        if report.year not in self.period.years:
+            raise YearError()
 
-    def _check_match(self, report):
-        """Проверка совпадения типа периода отчёта с периодом схемы"""
-        if report.period_type is not None:
-            if report.period_type != str(int(self.idp)):
-                self.error(
-                    "Тип периодичности отчёта не соответствует "
-                    "типу периодичности шаблона",
-                    "3",
-                )
+    def _recode_period(self, report):
+        """Разбор формата периода"""
+        self.period.recode_period(report)
 
     def _check_period(self, report):
-        """Проверка кода периода"""
-        if report.period_code is None:
-            if not report.set_periods(self.catalogs, self.idp):
-                self.error("Неверное значение периода отчёта", "4")
+        """Проверка типа и номера периодичности"""
+        if not self.period.validate_idp(report):
+            raise IdpError()
+        if not self.period.validate_period(report):
+            raise PeriodError()

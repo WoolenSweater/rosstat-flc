@@ -2,7 +2,7 @@ from lark.exceptions import UnexpectedInput, VisitError
 
 from ..exceptions import (
     ConditionExprError,
-    PrevPeriodNotImpl,
+    PastPeriodError,
     RuleExprError,
     StopEvaluation,
 )
@@ -64,7 +64,5 @@ class FormulaInspector:
         """
         if formula:
             if "{{" in formula:
-                if self.schema.alerts:
-                    raise PrevPeriodNotImpl()
-                return False
+                raise PastPeriodError()
             return True

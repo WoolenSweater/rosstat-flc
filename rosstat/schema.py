@@ -40,7 +40,7 @@ class Schema:
 
     def _get_idp(self):
         """Получение атрибута idp"""
-        return self.xml.xpath("string(@idp)")
+        return self.xml.xpath("number(@idp)")
 
     def _get_obj(self):
         """Получение атрибута obj"""

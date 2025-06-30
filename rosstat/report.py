@@ -1,19 +1,11 @@
 from collections import defaultdict
 from dataclasses import InitVar, dataclass, field
-from math import gcd
 
 from lxml.etree import _Element, _ElementTree
 from multidict import MultiDict
 
 from .helpers import read_specs, str_int
 from .validators.control.helpers import SpecType
-
-
-def max_divider(num, terms):
-    """НОД для списка чисел"""
-    for term_id in terms:
-        num = gcd(num, int(term_id))
-    return num
 
 
 class CodeIterable:
@@ -129,18 +121,18 @@ class Report(CodeIterable):
     year: str = None
     version: str = None
 
+    period_raw: float = None
+    period_num: float = None
+    period_type: float = None
+
     title: dict[str, str] = None
     sections: dict[str, Section] = None
-
-    period: str = None
-    period_type: str = field(default=None, repr=False)
-    period_code: str = field(default=None, repr=False)
 
     def __post_init__(self, xml):
         self.title = dict(self._read_title(xml))
         self.sections = dict(self._read_data(xml))
 
-        self._get_periods(xml)
+        self._get_period(xml)
         self._get_version(xml)
         self._get_year(xml)
 
@@ -169,8 +161,6 @@ class Report(CodeIterable):
         """Чтение заголовков отчёта"""
         for item in xml.iterfind("title/item"):
             yield item.get("name"), item.get("value", "").strip()
-
-    # ---
 
     def _read_data(self, xml):
         """Чтение тела отчёта (разделы/строки/колонки)"""
@@ -205,46 +195,6 @@ class Report(CodeIterable):
         """Получение версии из корня отчёта"""
         self.version = xml.xpath("string(@version)")
 
-    def _get_periods(self, xml):
-        """Получение и разбиение периода из корня отчёта"""
-        self.period = xml.xpath("string(@period)")
-
-        if len(self.period) == 4:
-            self.period_type = str(int(self.period[:2]))
-            self.period_code = str(int(self.period[2:]))
-
-    # ---
-
-    def set_periods(self, catalogs, idp):
-        """
-        Попытка привести тип и код периода к формату описанному в спецификации
-        """
-        try:
-            period_ids = self._get_period_ids(catalogs)
-
-            if int(self.period) not in period_ids:
-                return False
-
-            max_code = max(period_ids)
-
-            if max_code <= int(idp):
-                self.period_type = idp
-                self.period_code = str(int(self.period))
-                return True
-
-            max_div = max_divider(max_code, period_ids)
-
-            if max_code <= int(idp) * max_div:
-                self.period_type = idp
-                self.period_code = str(int(int(self.period) / max_div))
-                return True
-            return False
-        except Exception:
-            return False
-
-    def _get_period_ids(self, catalogs):
-        """Получение идентификаторов допустимых периодов из справочника"""
-        try:
-            return set(map(int, catalogs["s_time"]["ids"]))
-        except KeyError:
-            return set(map(int, catalogs["s_mes"]["ids"]))
+    def _get_period(self, xml):
+        """Получение периода из корня отчёта"""
+        self.period_raw = xml.xpath("number(@period)")

@@ -1,5 +1,4 @@
-from numpy import broadcast_to
-from numpy.ma import getmask, nomask
+from numpy import False_, broadcast_to
 
 from .helpers import RuleFail
 
@@ -73,24 +72,20 @@ class PeriodExprError(CriticalError):
     """Ошибка разбора формулы периодичности"""
 
 
-class PrevPeriodNotImpl(CriticalError):
-    msg = "Проверка со значениями из прошлого периода невозможна"
+class PastPeriodError(CriticalError):
+    msg = "Проверка со значениями из прошлого периода невозможна (пропуск)"
 
 
 class RuleCheckFailed(CriticalError):
     def __init__(self, operation, left, right, delta, result):
         self.operation = operation
 
-        mask = self.__get_mask(result)
         left, right = self.__equalize_operands(left, right)
 
-        self.stack = zip(left.flat, right.flat, delta.flat, mask.flat)
+        self.stack = zip(left.flat, right.flat, delta.flat, result.flat)
 
     def __str__(self):
         return "RuleCheckFailed"
-
-    def __get_mask(self, result):
-        return result if (mask := getmask(result)) is nomask else mask
 
     def __equalize_operands(self, left, right):
         if left.size > right.size:
@@ -100,8 +95,8 @@ class RuleCheckFailed(CriticalError):
         return left, right
 
     def __iter__(self):
-        for left, right, delta, masked in self.stack:
-            if not masked:
+        for left, right, delta, result in self.stack:
+            if result is False_:
                 yield RuleFail(
                     operation=self.operation,
                     left=left,

@@ -31,7 +31,7 @@ class PeriodInspector:
             self.clause.lower()
             .replace("=", "==")
             .replace("<>", "!=")
-            .replace("&np", report.period_code),
+            .replace("&np", str(int(report.period_num))),
         )
 
     def eval(self, expr):

@@ -1,5 +1,5 @@
 from ..base import AbstractValidator
-from .exceptions import PrevPeriodNotImpl, RuleCheckFailed
+from .exceptions import PastPeriodError, RuleCheckFailed
 from .helpers import Control
 from .inspectors import FormulaInspector, PeriodInspector
 
@@ -9,8 +9,8 @@ class ControlValidator(AbstractValidator):
     code = "4"
 
     def __init__(self, schema):
-        self.schema = schema
         self.errors = []
+        self.schema = schema
 
     def __repr__(self):
         return f"<ControlValidator errors={self.errors}>"
@@ -40,12 +40,18 @@ class ControlValidator(AbstractValidator):
         try:
             if self.__check_period(report, control):
                 self.__check_control(report, control)
-        except PrevPeriodNotImpl as err:
-            self.error(err.msg, control.id, level=0)
+        except PastPeriodError as err:
+            self.__err_period(err, control)
         except RuleCheckFailed as err:
-            self.errormany(err, control)
+            self.__err_many(err, control)
 
-    def errormany(self, errs, control):
+    def __err_period(self, err, control):
+        """Формат-ие ошибки о пропуске контроля со знач. из прошлого периода"""
+        if self.schema.alerts:
+            self.error(err.msg, control.id, level=0)
+
+    def __err_many(self, errs, control):
+        """Формат-ие ошибок проверки контроля"""
         for err in errs:
             self.error(self._fmt(control, err), control.id, level=control.tip)
 
