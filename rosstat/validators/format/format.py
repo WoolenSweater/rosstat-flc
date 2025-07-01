@@ -1,14 +1,14 @@
 from ..base import AbstractValidator
 from .exceptions import (
-    DuplicateError,
-    EmptyColumnError,
-    EmptyRowError,
+    DuplicateRowError,
     FormatError,
     FormatInspectorError,
+    NoRequiredValueError,
     NoRuleError,
     NoSectionReportError,
     NoSectionTemplateError,
 )
+from .helpers import ReqsChecker
 from .inspectors import SpecInspector, ValueInspector
 
 
@@ -19,6 +19,7 @@ class FormatValidator(AbstractValidator):
     def __init__(self, schema):
         self.errors = []
 
+        self.allowempty = schema.allowempty
         self.dimension = schema.dimension
         self.required = schema.required
         self.catalogs = schema.catalogs
@@ -45,10 +46,11 @@ class FormatValidator(AbstractValidator):
 
     def validate(self, report):
         try:
-            self._check_sections(report)
-            self._check_duplicates(report)
-            self._check_required(report)
-            self._check_format(report)
+            if not report.empty or not self.allowempty:
+                self._check_sections(report)
+                self._check_duplicates(report)
+                self._check_required(report)
+                self._check_format(report)
         except FormatError as exc:
             self.error(exc.msg, exc.code)
 
@@ -67,16 +69,13 @@ class FormatValidator(AbstractValidator):
                     row_code, *specs = row
                     if any(specs):
                         row_code = f"{row_code} {self._fmt(specs)}"
-                    raise DuplicateError(section.code, row_code, counter)
+                    raise DuplicateRowError(section.code, row_code, counter)
 
     def _check_required(self, report):
         """Проверка наличия обязательных к заполнению строк и значений"""
-        for sec_code, row_code, col_code in self.required:
-            for row in report.get_section(sec_code).get_rows(row_code):
-                if not row:
-                    raise EmptyRowError(sec_code, row_code)
-                if not row.get_column(col_code):
-                    raise EmptyColumnError(sec_code, row_code, col_code)
+        for coords in self.required:
+            if not ReqsChecker.has_value(report, coords):
+                raise NoRequiredValueError(*coords)
 
     def _check_format(self, report):
         """Проверка формата строк и значений в них"""

@@ -25,15 +25,15 @@ class ControlValidator(AbstractValidator):
         )
 
     def validate(self, report):
-        self._check_controls(report)
+        if not report.empty:
+            self._check_controls(report)
 
         return not bool(self.errors)
 
     def _check_controls(self, report):
         """Проверка отчёта по контролям"""
-        if not report.blank:
-            for control in map(Control, self.schema.controls):
-                self._check_control(report, control)
+        for control in map(Control, self.schema.controls):
+            self._check_control(report, control)
 
     def _check_control(self, report, control):
         """Обёртка для обработки исключения"""

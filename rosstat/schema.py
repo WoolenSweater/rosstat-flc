@@ -25,6 +25,7 @@ class Schema:
         self.formats = self._get_formats()
         self.controls = self._get_controls()
         self.catalogs = self._get_catalogs()
+        self.allowempty = self._get_allowempty()
 
         self.validators = self._init_validators()
 
@@ -57,6 +58,10 @@ class Schema:
     def _get_version(self):
         """Получение атрибута version"""
         return self.xml.xpath("string(@version)")
+
+    def _get_allowempty(self):
+        """Получение атрибута, разрешающего пустой отчёт"""
+        return self.xml.xpath("not(/settings/notEmpty = 'false')")
 
     # ---
 

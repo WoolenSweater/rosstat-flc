@@ -22,6 +22,9 @@ class Column:
     code: str
     value: str = None
 
+    def __bool__(self):
+        return bool(self.value)
+
     def __float__(self):
         return float(self.value or "nan")
 
@@ -113,6 +116,10 @@ class Section(CodeIterable):
         '''Возвращает список строк с указанным кодом"'''
         return self.rows.getall(code, [Row(code=code)])
 
+    def has_rows(self, code):
+        """Проверка существования строки с указанным кодом"""
+        return code in self.rows
+
 
 @dataclass
 class Report(CodeIterable):
@@ -137,7 +144,7 @@ class Report(CodeIterable):
         self._get_year(xml)
 
     @property
-    def blank(self):
+    def empty(self):
         return len(self.sections) == 0
 
     # ---

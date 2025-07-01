@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rosstat-flc"
-version = "2.0.0b15"
+version = "2.0.0b16"
 description = "Tool for format-logistic control of reports sent to RosStat"
 authors = ["Никита Рябинин <ryabinin.ne@gmail.com>"]
 license = "MIT"
@@ -20,7 +20,7 @@ keywords = [
     "russian-specific",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Natural Language :: Russian",
