@@ -1,12 +1,11 @@
-[tool.poetry]
+[project]
 name = "rosstat-flc"
-version = "2.0.0b16"
+version = "2.0.0b17"
 description = "Tool for format-logistic control of reports sent to RosStat"
-authors = ["Никита Рябинин <ryabinin.ne@gmail.com>"]
-license = "MIT"
+authors = [{ name = "Никита Рябинин", email = "ryabinin.ne@gmail.com" }]
+requires-python = ">=3.10"
 readme = "README.md"
-packages = [{include = "rosstat"}]
-repository = "https://github.com/WoolenSweater/rosstat-flc"
+license = "MIT"
 keywords = [
     "flc",
     "tool",
@@ -26,23 +25,38 @@ classifiers = [
     "Natural Language :: Russian",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
+dependencies = [
+    "lxml==5.4.0",
+    "numpy==2.2.6",
+    "multidict==6.6.3",
+    "lark[interegular]==1.2.2",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.10"
-lxml = "^5.3.0"
-numpy = "^2.0.1"
-multidict = "^6.0.5"
-lark = {extras = ["interegular"], version = "^1.2.2"}
+[project.urls]
+Repository = "https://github.com/WoolenSweater/rosstat-flc"
+Changelog = "https://github.com/WoolenSweater/rosstat-flc/blob/master/CHANGELOG.md"
 
-[tool.poetry.group.dev.dependencies]
-black = "^24.4.2"
-ruff = "^0.5.4"
+[dependency-groups]
+dev = [
+    "black==24.10.0",
+    "ruff==0.5.7",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["rosstat"]
+
+[tool.hatch.build.targets.wheel]
+include = ["rosstat"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.black]
 line-length = 79
@@ -53,7 +67,3 @@ fix = true
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
