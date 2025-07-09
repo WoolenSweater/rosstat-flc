@@ -12,15 +12,11 @@ class ReqsChecker:
     def _check_columns(rows, code):
         return all(row.get_column(code) for row in rows)
 
-    checkers = {
-        0: _check_section,
-        1: _check_rows,
-        2: _check_columns
-    }
+    checkers = (_check_section, _check_rows, _check_columns)
 
     @classmethod
     def has_value(cls, level, coords):
-        for idx, code in enumerate(coords):
-            if not (level := cls.checkers[idx](level, code)):
+        for checker, code in zip(cls.checkers, coords):
+            if not (level := checker(level, code)):
                 return False
         return True

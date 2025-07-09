@@ -8,12 +8,7 @@ from ..exceptions import (
     raise_for_reason,
 )
 from ..helpers import FormulaType
-from .dtype import nfloat, one
-from .entities import (
-    Coords,
-    Element,
-    SpecHolder,
-)
+from .dtype import one
 from .functions import (
     FUNCTION_MAP,
     cover,
@@ -23,32 +18,20 @@ from .functions import (
     sum_,
     xor,
 )
-from .tools import Context, Transformer, lazy
+from .tools import Transformer, pop
 
 
-class ControlExpr(Transformer):
-    def __init__(self, tree, type, report, mask, schema, control):
+class EvaluateExpr(Transformer):
+    def __init__(self, tree, ctx, lazy, type, mask, control):
         super().__init__(visit_tokens=False)
+        self._ctx = ctx
+        self._root = tree
+        self._lazy = lazy
         self._type = type
-        self._report = report
         self._mask = mask
 
         self._fault = control.fault
-        self._formats = schema.formats
-        self._catalogs = schema.catalogs
-        self._dimension = schema.dimension
-
-        self._root = tree
-        self._ctx = Context()
-        self._lazy = lazy(tree)
         self._precision = partial(round_, decimals=control.precision)
-
-    def __default__(self, data, children, meta):
-        return children
-
-    @staticmethod
-    def _pop(children):
-        return children.pop()
 
     # ---
 
@@ -165,33 +148,17 @@ class ControlExpr(Transformer):
 
     # ---
 
-    add_op = _pop
-    mul_op = _pop
-    bool_op = _pop
-    logic_op = _pop
+    add_op = pop
+    mul_op = pop
+    bool_op = pop
+    logic_op = pop
 
-    func_name = _pop
+    func_name = pop
 
-    code = _pop
-    ident = _pop
-    all = _pop
+    element = pop
+    num = pop
 
     math_term = _math_expr
     math_factor = _math_expr
     bool_expr = _bool_expr
     logic_expr = _logic_expr
-
-    def num(self, children):
-        num = nfloat(self._pop(children))
-
-        return self._ctx.add(num)
-
-    # ---
-
-    @v_args(inline=True)
-    def element(self, section, rows, cols, specs=None):
-        coords = Coords.create(section, rows, cols, self._dimension)
-        specs = SpecHolder.create(coords, specs, self._catalogs, self._formats)
-        elem = Element.create(coords, specs, self._report)
-
-        return self._ctx.add(elem)

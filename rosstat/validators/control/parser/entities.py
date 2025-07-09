@@ -1,4 +1,4 @@
-from numpy import True_, asarray, full, ndarray
+from numpy import asarray, full, ndarray
 from numpy.ma import MaskedArray
 
 from ..exceptions import (
@@ -10,7 +10,6 @@ from ..exceptions import (
 from ..helpers import SPEC_KEYS, SpecType
 from .dtype import nan, nfloat
 
-nptrue = True_
 star = "*"
 
 

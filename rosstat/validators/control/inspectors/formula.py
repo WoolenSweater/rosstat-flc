@@ -1,3 +1,5 @@
+from contextlib import suppress
+
 from lark.exceptions import UnexpectedInput, VisitError
 
 from ..exceptions import (
@@ -7,7 +9,7 @@ from ..exceptions import (
     StopEvaluation,
 )
 from ..helpers import FormulaType
-from ..parser import eval, getmask, invert, nptrue, parse
+from ..parser import eval, getmask, invert, parse, visit
 
 
 class FormulaInspector:
@@ -19,11 +21,9 @@ class FormulaInspector:
         return f"<FormulaInspector control={self.control}>"
 
     def check(self, report):
-        try:
+        with suppress(StopEvaluation):
             if invert(mask := getmask(self._check_condition(report))).any():
                 return self._check_rule(report, mask)
-        except StopEvaluation:
-            pass
 
     def _check_condition(self, report):
         """Проверка условия контроля"""
@@ -38,10 +38,11 @@ class FormulaInspector:
         )
 
     def _check_formula(self, formula, type, exc, report, mask=None):
-        """Проверка, парсинг и применение формулы на отчёт"""
+        """Проверка, парсинг, препроцессинг и применение формулы на отчёт"""
         if self.__proper(formula):
-            return self.__check(self.__parse(formula, exc), type, report, mask)
-        return nptrue
+            tree = self.__parse(formula, exc)
+            ctx, lazy = self.__prepare(tree, report)
+            return self.__check(tree, ctx, lazy, type, mask)
 
     def __parse(self, formula, exc):
         """Парсинг формулы"""
@@ -50,10 +51,17 @@ class FormulaInspector:
         except UnexpectedInput:
             raise exc(self.control.id)
 
-    def __check(self, tree, type, report, mask):
+    def __prepare(self, tree, report):
+        """Препроцессинг. Формирование элементов и контекста"""
+        try:
+            return visit(tree, report, self.schema)
+        except VisitError as exc:
+            raise exc.orig_exc
+
+    def __check(self, tree, ctx, lazy, type, mask):
         """Выполнение проверки"""
         try:
-            return eval(tree, type, report, mask, self.schema, self.control)
+            return eval(tree, ctx, lazy, type, mask, self.control)
         except VisitError as exc:
             raise exc.orig_exc
 
