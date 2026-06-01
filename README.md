@@ -1,4 +1,4 @@
-# Rosstat FLC 2 [Beta]
+# Rosstat FLC 2
 
 ![PyPI - License](https://img.shields.io/pypi/l/rosstat-flc)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/rosstat-flc)
@@ -13,7 +13,7 @@
 
 ## Установка
 ```bash
-poetry add git+https://github.com/WoolenSweater/rosstat-flc.git#2.0.0
+pip install rosstat-flc
 ```
 
 ## Зависимости
